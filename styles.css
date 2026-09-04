@@ -815,10 +815,10 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 /* Final ivory pass: warm paper, restrained contrast, and no green cast. */
 :root[data-theme="ivory"] {
   color-scheme: light;
-  --bg: #e7e2d8;
-  --surface: #f0ece3;
-  --panel: #e8e3d9;
-  --panel-deep: #d8d2c7;
+  --bg: #eeeae2;
+  --surface: #f5f1e9;
+  --panel: #eeeae2;
+  --panel-deep: #ded9cf;
   --ink: #31414a;
   --ink-soft: #66767a;
   --ink-faint: #8b9490;
@@ -830,12 +830,12 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
   --violet: #7662a0;
   --green: #398c76;
   --amber: #ad8056;
-  --glass: rgba(244, 240, 232, .78);
-  --glass-soft: rgba(238, 234, 225, .72);
-  --glass-edge: rgba(255, 251, 243, .72);
+  --glass: rgba(248, 245, 238, .82);
+  --glass-soft: rgba(243, 239, 231, .76);
+  --glass-edge: rgba(255, 252, 245, .82);
   --shadow: 0 24px 64px rgba(77, 73, 64, .16);
 }
-:root[data-theme="ivory"] body { background-color: #e7e2d8; background-image: radial-gradient(circle at 15% 23%, rgba(255,255,255,.32) 0 1px, transparent 1.5px), radial-gradient(circle at 82% 71%, rgba(97,86,68,.065) 0 1px, transparent 1.4px), repeating-linear-gradient(118deg, rgba(106,95,78,.024) 0 1px, transparent 1px 6px), linear-gradient(140deg, #ebe6dc, #dfdad0 54%, #e8e2d8); background-size: 11px 11px, 17px 17px, auto, auto; }
+:root[data-theme="ivory"] body { background-color: #eeeae2; background-image: radial-gradient(circle at 15% 23%, rgba(255,255,255,.36) 0 1px, transparent 1.5px), radial-gradient(circle at 82% 71%, rgba(97,86,68,.045) 0 1px, transparent 1.4px), repeating-linear-gradient(118deg, rgba(106,95,78,.018) 0 1px, transparent 1px 6px), linear-gradient(140deg, #f1ede5, #e8e3da 54%, #eee9e0); background-size: 11px 11px, 17px 17px, auto, auto; }
 :root[data-theme="ivory"] .board-heading-hero { background: linear-gradient(135deg, rgba(255,251,243,.54), transparent 56%), linear-gradient(155deg, #e1dcd2, #eee9e0 64%, #dad5cb) !important; border-color: rgba(43,137,151,.36); box-shadow: 0 24px 64px rgba(77,73,64,.16), inset 0 1px rgba(255,251,243,.8); }
 :root[data-theme="ivory"] .hero-visual { background: transparent; }
 :root[data-theme="ivory"] .hero-visual::before { border-color: rgba(43,137,151,.13); background: linear-gradient(90deg, rgba(250,247,240,.72), rgba(250,247,240,.26) 54%, transparent), linear-gradient(0deg, rgba(250,247,240,.38), transparent 54%, rgba(255,255,255,.18)); }

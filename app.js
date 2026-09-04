@@ -133,8 +133,8 @@ function revealPageProgress() {
 const themeToggle = $('themeToggle');
 const themeLabel = themeToggle.querySelector('[data-theme-label]');
 function applyTheme(theme) {
-  const themeOrder = ['dark', 'light', 'ivory'];
-  const themeNames = { dark: '深蓝', light: '雾蓝', ivory: '象牙' };
+  const themeOrder = ['dark', 'ivory'];
+  const themeNames = { dark: '深蓝', ivory: '亮色' };
   const activeTheme = themeOrder.includes(theme) ? theme : 'ivory';
   document.documentElement.dataset.theme = activeTheme;
   const nextTheme = themeOrder[(themeOrder.indexOf(activeTheme) + 1) % themeOrder.length];
@@ -148,7 +148,7 @@ let savedTheme = 'ivory';
 try { savedTheme = localStorage.getItem(themeStorageKey) || 'ivory'; } catch {}
 applyTheme(savedTheme);
 themeToggle.onclick = () => {
-  const themeOrder = ['dark', 'light', 'ivory'];
+  const themeOrder = ['dark', 'ivory'];
   const current = themeToggle.dataset.theme || 'light';
   const nextTheme = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length];
   applyTheme(nextTheme);
