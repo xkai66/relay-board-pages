@@ -31,25 +31,25 @@
 
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #e3ecee;
-  --surface: #edf3f2;
-  --panel: rgba(239, 244, 242, .86);
-  --panel-deep: #d8e3e3;
-  --ink: #28414d;
-  --ink-soft: #637b84;
-  --ink-faint: #84969d;
-  --line: rgba(58, 112, 132, .2);
-  --line-strong: rgba(46, 139, 178, .44);
+  --bg: #edf7fb;
+  --surface: #f7fbfd;
+  --panel: rgba(255, 255, 255, .84);
+  --panel-deep: #e5f1f6;
+  --ink: #17364b;
+  --ink-soft: #58758a;
+  --ink-faint: #7891a1;
+  --line: rgba(58, 122, 150, .22);
+  --line-strong: rgba(46, 139, 178, .52);
   --cyan: #2e9fbe;
   --blue: #3574d3;
   --magenta: #b34ca2;
   --violet: #6848bc;
   --green: #159b78;
   --amber: #2e8fc9;
-  --glass: rgba(239, 244, 242, .7);
-  --glass-soft: rgba(235, 242, 241, .62);
-  --glass-edge: rgba(255, 255, 255, .66);
-  --shadow: 0 24px 64px rgba(52, 91, 105, .14);
+  --glass: rgba(255, 255, 255, .68);
+  --glass-soft: rgba(247, 251, 253, .58);
+  --glass-edge: rgba(255, 255, 255, .76);
+  --shadow: 0 24px 64px rgba(52, 110, 137, .16);
 }
 
 :root[data-theme="ivory"] {
