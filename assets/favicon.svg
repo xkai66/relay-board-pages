@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title>Relay Board</title>
+  <defs>
+    <linearGradient id="bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111d38"/>
+      <stop offset="1" stop-color="#050a18"/>
+    </linearGradient>
+    <linearGradient id="signal" x1="16" y1="48" x2="48" y2="16" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#2fd9ff"/>
+      <stop offset=".62" stop-color="#39d7de"/>
+      <stop offset="1" stop-color="#d946c8"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#bg)" stroke="#63dffc" stroke-width="2"/>
+  <path d="M14 48h36" stroke="#294664" stroke-width="2" stroke-linecap="round"/>
+  <rect x="15" y="32" width="7" height="16" rx="2" fill="#2fd9ff"/>
+  <rect x="28.5" y="23" width="7" height="25" rx="2" fill="url(#signal)"/>
+  <rect x="42" y="14" width="7" height="34" rx="2" fill="#d946c8"/>
+  <path d="M18.5 29.5 32 20l13.5-9.5" fill="none" stroke="url(#signal)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity=".85"/>
+  <circle cx="18.5" cy="29.5" r="2.5" fill="#f1f5ff"/>
+  <circle cx="32" cy="20" r="2.5" fill="#54ecff"/>
+  <circle cx="45.5" cy="10.5" r="2.5" fill="#f47ce1"/>
+</svg>
