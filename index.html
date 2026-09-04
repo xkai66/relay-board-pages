@@ -180,6 +180,17 @@
               <button class="button outline full" type="submit">添加账户</button>
             </form>
             <div class="user-list" id="userList"></div>
+            <div class="user-editor" id="userEditor" hidden>
+              <div class="sidebar-kicker">EDIT ACCOUNT</div>
+              <form id="editUserForm" class="auth-form">
+                <input id="editUserId" type="hidden">
+                <label>账户名<input id="editUsername" autocomplete="off" required></label>
+                <label>新密码（留空不修改）<input id="editPassword" type="password" autocomplete="new-password" placeholder="至少 8 位"></label>
+                <label class="checkbox-label"><input id="editDisabled" type="checkbox"> 停用此账户</label>
+                <div class="editor-actions"><button class="button outline" type="submit">保存修改</button><button class="button quiet" id="cancelEditUser" type="button">取消</button></div>
+                <div class="auth-error" id="editUserError" role="alert" hidden></div>
+              </form>
+            </div>
           </div>
         </div>
       </div>

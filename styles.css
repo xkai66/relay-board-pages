@@ -833,5 +833,11 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 .user-list { display: grid; gap: 5px; max-height: 140px; overflow: auto; }
 .user-list-item { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; color: var(--ink-soft); background: rgba(255,255,255,.035); font: 10px var(--zh); }
 .user-list-item small { color: var(--ink-faint); }
+.user-list-actions, .editor-actions { display: flex; align-items: center; gap: 6px; }
+.user-list-actions .mini-button { min-height: 28px; padding: 5px 8px; }
+.mini-button.danger { color: #ff9aae; border-color: rgba(255,120,150,.35); }
+.user-editor { display: grid; gap: 12px; margin-top: 8px; padding-top: 16px; border-top: 1px dashed var(--line); }
+.checkbox-label { display: flex !important; grid-template-columns: auto 1fr !important; align-items: center; gap: 8px !important; }
+.checkbox-label input { width: 16px !important; min-height: 16px !important; }
 @media (max-width: 720px) { .topbar-right { gap: 9px; }.topbar-note, .account-button #accountLabel { display: none; }.account-button { width: 34px; justify-content: center; padding: 6px; }.connection { gap: 3px; }.device-name-button { max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 @media (max-width: 520px) { .room-sidebar { top: 10px; bottom: 10px; left: 10px; width: min(292px, calc(100vw - 20px)); border-radius: 22px; }.auth-panel { padding: 25px 20px; border-radius: 22px; } }
