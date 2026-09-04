@@ -134,7 +134,7 @@ const themeToggle = $('themeToggle');
 const themeLabel = themeToggle.querySelector('[data-theme-label]');
 function applyTheme(theme) {
   const themeOrder = ['dark', 'light'];
-  const themeNames = { dark: '深蓝', light: '亮色' };
+  const themeNames = { dark: '深蓝', light: '雾白' };
   const activeTheme = themeOrder.includes(theme) ? theme : 'light';
   document.documentElement.dataset.theme = activeTheme;
   const nextTheme = themeOrder[(themeOrder.indexOf(activeTheme) + 1) % themeOrder.length];
