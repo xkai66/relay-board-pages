@@ -7,7 +7,7 @@
   <meta name="relay-api-base" content="https://api.2013148.xyz">
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
   <title>Relay Board · 跨设备中转板</title>
-  <link rel="stylesheet" href="styles.css?v=20260904-08">
+  <link rel="stylesheet" href="styles.css?v=20260904-09">
 </head>
 <body>
   <div class="app-shell">
@@ -22,7 +22,7 @@
       <div class="topbar-right">
         <span class="topbar-note">PRIVATE / NO LOGIN</span>
         <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="切换到深蓝风格">
-          <span class="theme-toggle-icon" aria-hidden="true">◐</span><span data-theme-label>雾白</span>
+          <span class="theme-toggle-icon" aria-hidden="true">◐</span><span data-theme-label>亮色</span>
         </button>
         <button class="account-button" id="accountButton" type="button" aria-label="登录账户" aria-expanded="false"><span class="account-icon" aria-hidden="true">◉</span><span id="accountLabel">登录</span></button>
         <div class="connection"><span class="status-dot" id="statusDot"></span><span id="connectionText">正在连接</span><button class="device-name-button" id="deviceNameButton" type="button" aria-label="编辑本设备名称"><span id="deviceNameText">本设备</span> ✎</button></div>
@@ -30,8 +30,9 @@
     </header>
 
     <aside class="room-sidebar" id="roomSidebar" aria-hidden="true">
-      <div class="room-sidebar-head"><div><span class="sidebar-kicker">ROOMS</span><strong>我的房间</strong></div><button class="icon-button sidebar-close" id="sidebarClose" type="button" aria-label="关闭侧边栏">×</button></div>
+      <div class="room-sidebar-head"><div><span class="sidebar-kicker">ROOMS</span><strong>我的房间</strong></div><div class="sidebar-head-actions"><button class="mini-button" id="renameRoom" type="button" hidden>改名</button><button class="mini-button danger" id="deleteRoom" type="button" hidden>删除</button><button class="icon-button sidebar-close" id="sidebarClose" type="button" aria-label="关闭侧边栏">×</button></div></div>
       <button class="sidebar-new-room" id="sidebarNewRoom" type="button"><span>＋</span>开启新房间</button>
+      <label class="room-search"><span>⌕</span><input id="roomSearch" type="search" placeholder="搜索房间名称" autocomplete="off"></label>
       <div class="sidebar-section-label">最近访问</div>
       <nav class="room-list" id="roomList" aria-label="房间列表"></nav>
       <div class="room-sidebar-foot"><span class="sidebar-status-dot"></span><span id="sidebarModeLabel">本地静态模式</span></div>
@@ -198,6 +199,6 @@
     </div>
     <div id="toast" class="toast" role="status"></div>
   </div>
-  <script type="module" src="app.js?v=20260904-08"></script>
+  <script type="module" src="app.js?v=20260904-09"></script>
 </body>
 </html>

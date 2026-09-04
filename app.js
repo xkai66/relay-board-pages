@@ -63,6 +63,9 @@ const sidebarClose = $('sidebarClose');
 const sidebarBackdrop = $('sidebarBackdrop');
 const roomSidebar = $('roomSidebar');
 const roomList = $('roomList');
+const roomSearch = $('roomSearch');
+const renameRoomButton = $('renameRoom');
+const deleteRoomButton = $('deleteRoom');
 const accountButton = $('accountButton');
 const accountLabel = $('accountLabel');
 const authDialog = $('authDialog');
@@ -71,6 +74,7 @@ const loginForm = $('loginForm');
 const accountPane = $('accountPane');
 const authError = $('authError');
 let authState = { enabled: false, authenticated: false, user: null };
+let roomMeta = { name: '', canManage: false };
 let turnstileWidgetId = null;
 let turnstileToken = '';
 let connectionRetryTimer;
@@ -134,7 +138,7 @@ const themeToggle = $('themeToggle');
 const themeLabel = themeToggle.querySelector('[data-theme-label]');
 function applyTheme(theme) {
   const themeOrder = ['dark', 'light'];
-  const themeNames = { dark: '深蓝', light: '雾白' };
+  const themeNames = { dark: '深蓝', light: '亮色' };
   const activeTheme = themeOrder.includes(theme) ? theme : 'light';
   document.documentElement.dataset.theme = activeTheme;
   const nextTheme = themeOrder[(themeOrder.indexOf(activeTheme) + 1) % themeOrder.length];
@@ -188,20 +192,22 @@ async function restoreRoomCache() {
 
 const roomHistoryKey = 'relay-board-room-history';
 function readRoomHistory() { try { return JSON.parse(localStorage.getItem(roomHistoryKey) || '[]').filter((entry) => /^[a-zA-Z0-9_-]{8,64}$/.test(entry.room)); } catch { return []; } }
-function rememberRoom() {
+function rememberRoom(name = roomMeta.name || '') {
   const records = readRoomHistory().filter((entry) => entry.room !== room);
-  records.unshift({ room, seenAt: Date.now() });
+  records.unshift({ room, name: String(name || '').slice(0, 80), seenAt: Date.now() });
   try { localStorage.setItem(roomHistoryKey, JSON.stringify(records.slice(0, 20))); } catch {}
 }
 function renderRoomList() {
   roomList.replaceChildren();
-  readRoomHistory().forEach((entry) => {
+  const query = String(roomSearch?.value || '').trim().toLowerCase();
+  readRoomHistory().filter((entry) => !query || `${entry.name || ''} ${entry.room}`.toLowerCase().includes(query)).forEach((entry) => {
     const button = document.createElement('button'); button.type = 'button'; button.className = `room-list-item${entry.room === room ? ' is-current' : ''}`; button.disabled = authState.enabled && !authState.authenticated; button.dataset.requiresAuth = 'true';
-    const code = document.createElement('code'); code.textContent = entry.room.slice(0, 8).toUpperCase();
+    const copy = document.createElement('span'); copy.className = 'room-list-copy'; const name = document.createElement('strong'); name.textContent = entry.name || `房间 ${entry.room.slice(0, 6).toUpperCase()}`; const code = document.createElement('code'); code.textContent = entry.room.slice(0, 8).toUpperCase(); copy.append(name, code);
     const small = document.createElement('small'); small.textContent = entry.room === room ? '当前' : '房间';
-    button.append(code, small); button.onclick = () => { if (!button.disabled) location.href = `?room=${encodeURIComponent(entry.room)}`; }; roomList.append(button);
+    button.append(copy, small); button.onclick = () => { if (!button.disabled) location.href = `?room=${encodeURIComponent(entry.room)}`; }; roomList.append(button);
   });
 }
+function renderRoomControls() { const visible = Boolean(roomMeta.canManage && authState.authenticated); renameRoomButton.hidden = !visible; deleteRoomButton.hidden = !visible; }
 function toggleSidebar(open) {
   const next = open ?? !roomSidebar.classList.contains('is-open');
   roomSidebar.classList.toggle('is-open', next); roomSidebar.setAttribute('aria-hidden', String(!next)); sidebarToggle.setAttribute('aria-expanded', String(next)); sidebarBackdrop.hidden = !next;
@@ -213,7 +219,7 @@ function setStaticMode(staticMode) {
   document.querySelector('label[for="fileInput"]')?.classList.toggle('is-auth-disabled', staticMode);
   const fileInput = $('fileInput'); if (fileInput) { fileInput.disabled = staticMode; fileInput.dataset.requiresAuth = 'true'; }
   $('sidebarNewRoom').disabled = staticMode; $('sidebarNewRoom').dataset.requiresAuth = 'true'; $('sidebarModeLabel').textContent = staticMode ? '未登录 · 静态模式' : '已登录 · 同步开启';
-  renderRoomList();
+  renderRoomList(); renderRoomControls();
 }
 function renderAccountState() {
   const user = authState.user;
@@ -224,7 +230,7 @@ function renderAccountState() {
   $('adminToggle').hidden = user?.role !== 'admin';
   $('passwordToggle').hidden = user?.role !== 'admin';
   if (user?.role !== 'admin') { $('adminPanel').hidden = true; $('passwordPanel').hidden = true; }
-  setStaticMode(authState.enabled && !authState.authenticated);
+  setStaticMode(authState.enabled && !authState.authenticated); renderRoomControls();
 }
 function openAuthDialog() { authError.hidden = true; authDialog.hidden = false; accountButton.setAttribute('aria-expanded', 'true'); if (!authState.user) $('authUsername').focus(); }
 function closeAuthDialog() { authDialog.hidden = true; accountButton.setAttribute('aria-expanded', 'false'); }
@@ -581,7 +587,7 @@ function renderAll() {
 
 async function loadRoom() {
   const response = await fetch(apiUrl(`/api/room/${room}`), { cache: 'no-store', credentials: 'include' }); if (!response.ok) throw new Error('room_load_failed');
-  const data = await response.json(); itemStore.clear(); data.items.forEach((item) => itemStore.set(item.id, item)); renderAll(); requestAnimationFrame(scrollToHash); saveRoomCache();
+  const data = await response.json(); roomMeta = { name: data.name || `房间 ${room.slice(0, 6).toUpperCase()}`, canManage: Boolean(data.canManage) }; rememberRoom(roomMeta.name); renderRoomList(); renderRoomControls(); itemStore.clear(); data.items.forEach((item) => itemStore.set(item.id, item)); renderAll(); requestAnimationFrame(scrollToHash); saveRoomCache();
 }
 
 function scrollToHash() {
@@ -594,6 +600,7 @@ function connectEvents() {
   eventSource.addEventListener('ready', () => { clearTimeout(connectionRetryTimer); connectionRetryDelay = 1500; setConnectionState('live'); loadRoom().catch(() => {}); });
   eventSource.addEventListener('item', (event) => { const item = JSON.parse(event.data); itemStore.set(item.id, item); renderAll(); saveRoomCache(); });
   eventSource.addEventListener('remove', (event) => { itemStore.delete(JSON.parse(event.data).id); renderAll(); saveRoomCache(); });
+  eventSource.addEventListener('room_deleted', () => { if (location.search.includes(room)) location.href = `?room=${makeRoom()}`; });
   eventSource.onerror = () => { setConnectionState('offline', itemStore.size > 0); scheduleConnectionRetry(); };
 }
 
@@ -834,8 +841,29 @@ window.addEventListener('scroll', () => { updatePageProgress(); revealPageProgre
 window.addEventListener('resize', updatePageProgress);
 updatePageProgress();
 $('copyKey').onclick = () => navigator.clipboard.writeText(room).then(() => showToast('房间密钥已复制'));
-$('newRoom').onclick = () => { if ($('newRoom').disabled) return; const nextRoom = makeRoom(); rememberRoom(); location.href = `?room=${nextRoom}`; };
-$('sidebarNewRoom').onclick = () => { if ($('sidebarNewRoom').disabled) return; const nextRoom = makeRoom(); rememberRoom(); location.href = `?room=${nextRoom}`; };
+async function createRoomAndNavigate() {
+  if ($('newRoom').disabled) return;
+  const name = window.prompt('给新房间起个名称', '新房间'); if (name === null) return;
+  const nextRoom = makeRoom();
+  try { await authRequest(`/api/room/${nextRoom}`, { method: 'POST', body: JSON.stringify({ name }) }); location.href = `?room=${nextRoom}`; }
+  catch { showToast('新房间创建失败'); }
+}
+async function renameCurrentRoom() {
+  if (!roomMeta.canManage) return;
+  const name = window.prompt('修改房间名称', roomMeta.name || '未命名房间'); if (name === null || !name.trim()) return;
+  try { const data = await authRequest(`/api/room/${room}/meta`, { method: 'PATCH', body: JSON.stringify({ name }) }); roomMeta.name = data.name; rememberRoom(roomMeta.name); renderRoomList(); showToast('房间名称已修改'); }
+  catch (error) { showToast(error.message === 'room_owner_required' ? '只有创房人可以修改名称' : '房间名称修改失败'); }
+}
+async function deleteCurrentRoom() {
+  if (!roomMeta.canManage || !window.confirm(`确定删除房间“${roomMeta.name || room.slice(0, 8).toUpperCase()}”吗？`)) return;
+  try { await authRequest(`/api/room/${room}`, { method: 'DELETE' }); location.href = `?room=${makeRoom()}`; }
+  catch (error) { showToast(error.message === 'room_owner_required' ? '只有创房人可以删除房间' : '房间删除失败'); }
+}
+$('newRoom').onclick = createRoomAndNavigate;
+$('sidebarNewRoom').onclick = createRoomAndNavigate;
+renameRoomButton.onclick = renameCurrentRoom;
+deleteRoomButton.onclick = deleteCurrentRoom;
+roomSearch?.addEventListener('input', renderRoomList);
 $('sidebarToggle').onclick = () => toggleSidebar(); $('sidebarClose').onclick = () => toggleSidebar(false); $('sidebarBackdrop').onclick = () => toggleSidebar(false);
 $('accountButton').onclick = () => { if (authState.user) { authDialog.hidden = false; accountButton.setAttribute('aria-expanded', 'true'); } else openAuthDialog(); };
 $('authClose').onclick = closeAuthDialog;
