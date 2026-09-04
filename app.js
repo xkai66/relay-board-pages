@@ -216,6 +216,8 @@ function renderAccountState() {
   $('accountName').textContent = user?.username || '账户'; $('accountRole').textContent = user?.role === 'admin' ? '管理员账户' : '普通账户';
   loginForm.hidden = Boolean(user); accountPane.hidden = !user;
   $('adminToggle').hidden = user?.role !== 'admin';
+  $('passwordToggle').hidden = user?.role !== 'admin';
+  if (user?.role !== 'admin') { $('adminPanel').hidden = true; $('passwordPanel').hidden = true; }
   setStaticMode(authState.enabled && !authState.authenticated);
 }
 function openAuthDialog() { authError.hidden = true; authDialog.hidden = false; accountButton.setAttribute('aria-expanded', 'true'); if (!authState.user) $('authUsername').focus(); }
@@ -837,6 +839,8 @@ loginForm.addEventListener('submit', async (event) => {
 $('logoutButton').onclick = async () => { try { await authRequest('/api/auth/logout', { method: 'POST', body: '{}' }); } catch {} location.reload(); };
 $('adminToggle').onclick = () => { const panel = $('adminPanel'); panel.hidden = !panel.hidden; if (!panel.hidden) loadAdminUsers(); };
 $('addUserForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await authRequest('/api/auth/users', { method: 'POST', body: JSON.stringify({ username: $('newUsername').value.trim(), password: $('newPassword').value }) }); $('newUsername').value = ''; $('newPassword').value = ''; showToast('账户已添加'); loadAdminUsers(); } catch (error) { showToast(error.message === 'username_exists' ? '账户名已存在' : '添加账户失败'); } });
+$('passwordToggle').onclick = () => { const panel = $('passwordPanel'); panel.hidden = !panel.hidden; if (!panel.hidden) $('currentPassword').focus(); };
+$('passwordForm').addEventListener('submit', async (event) => { event.preventDefault(); const error = $('passwordError'); error.hidden = true; if ($('newAdminPassword').value !== $('confirmAdminPassword').value) { error.textContent = '两次新密码不一致'; error.hidden = false; return; } try { await authRequest('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword: $('currentPassword').value, newPassword: $('newAdminPassword').value }) }); $('passwordForm').reset(); $('passwordPanel').hidden = true; showToast('管理员密码已修改'); } catch (requestError) { error.textContent = requestError.message === 'current_password_invalid' ? '当前密码不正确' : requestError.message === 'password_invalid' ? '新密码至少 8 位' : '密码修改失败'; error.hidden = false; } });
 $('analyzeButton').onclick = async () => {
   const result = $('analysisResult'); result.hidden = false; result.textContent = '正在分析…';
   try { const response = await fetch(apiUrl(`/api/room/${room}/analyze`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: $('analysisPrompt').value }) }); const data = await response.json(); result.textContent = data.text || data.message || '没有可显示的分析结果。'; }

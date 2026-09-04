@@ -828,8 +828,8 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 .account-summary strong, .account-summary small { display: block; }
 .account-summary strong { color: var(--ink); font: 13px var(--zh); }
 .account-summary small { margin-top: 4px; color: var(--ink-faint); font: 10px var(--zh); }
-.admin-panel { display: grid; gap: 12px; margin-top: 5px; padding-top: 18px; border-top: 1px solid var(--line); }
-.admin-panel h3 { margin: -3px 0 2px; color: var(--ink); font: 16px var(--zh); font-weight: 300; }
+.admin-panel, .password-panel { display: grid; gap: 12px; margin-top: 5px; padding-top: 18px; border-top: 1px solid var(--line); }
+.admin-panel h3, .password-panel h3 { margin: -3px 0 2px; color: var(--ink); font: 16px var(--zh); font-weight: 300; }
 .user-list { display: grid; gap: 5px; max-height: 140px; overflow: auto; }
 .user-list-item { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 8px 10px; border: 1px solid transparent; border-radius: 10px; color: var(--ink-soft); background: rgba(255,255,255,.035); font: 10px var(--zh); }
 .user-list-item small { color: var(--ink-faint); }

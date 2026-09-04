@@ -158,7 +158,19 @@
         <div id="accountPane" class="account-pane" hidden>
           <div class="account-summary"><span class="account-avatar">◉</span><div><strong id="accountName">管理员</strong><small id="accountRole">管理员账户</small></div></div>
           <button class="button outline full" id="adminToggle" type="button" hidden>管理账户</button>
+          <button class="button quiet full" id="passwordToggle" type="button" hidden>修改管理员密码</button>
           <button class="button quiet full" id="logoutButton" type="button">退出登录</button>
+          <div class="password-panel" id="passwordPanel" hidden>
+            <div class="sidebar-kicker">SECURITY</div>
+            <h3>修改管理员密码</h3>
+            <form id="passwordForm" class="auth-form">
+              <label>当前密码<input id="currentPassword" type="password" autocomplete="current-password" required></label>
+              <label>新密码<input id="newAdminPassword" type="password" autocomplete="new-password" placeholder="至少 8 位" required></label>
+              <label>确认新密码<input id="confirmAdminPassword" type="password" autocomplete="new-password" required></label>
+              <button class="button outline full" type="submit">保存新密码</button>
+              <div class="auth-error" id="passwordError" role="alert" hidden></div>
+            </form>
+          </div>
           <div class="admin-panel" id="adminPanel" hidden>
             <div class="sidebar-kicker">ADMIN PANEL</div>
             <h3>添加账户</h3>
