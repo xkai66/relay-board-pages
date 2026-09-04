@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#020615">
+  <meta name="relay-api-base" content="">
+  <title>分析卡片 · Relay Board</title>
+  <link rel="stylesheet" href="styles.css?v=20260903-06">
+  <style>
+    .analysis-page { min-height: 100vh; background: var(--bg); }
+    .analysis-shell { width: min(880px, calc(100% - 32px)); margin: 0 auto; padding: 52px 0 72px; }
+    .analysis-topbar { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 22px; color: var(--ink-faint); font: 10px var(--display); letter-spacing: .18em; }
+    .analysis-topbar a { color: var(--ink-soft); text-decoration: none; letter-spacing: .06em; }
+    .analysis-topbar a:hover { color: var(--cyan); }
+    .shared-analysis-card { overflow: hidden; border: 1px solid var(--glass-edge); border-radius: 28px; background: linear-gradient(145deg, rgba(255,255,255,.08), transparent 48%), var(--glass); box-shadow: var(--shadow), inset 0 1px rgba(255,255,255,.72); backdrop-filter: blur(20px) saturate(125%); -webkit-backdrop-filter: blur(20px) saturate(125%); }
+    .shared-analysis-card::before { content: ""; display: block; width: 72px; height: 2px; background: linear-gradient(90deg, var(--cyan), var(--magenta)); box-shadow: 0 0 12px rgba(47,217,255,.42); }
+    .shared-analysis-inner { padding: clamp(24px, 5vw, 52px); }
+    .shared-analysis-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 22px; color: var(--ink-faint); font: 10px var(--zh); }
+    .shared-analysis-meta strong { color: var(--cyan); font: 600 10px var(--display); letter-spacing: .16em; }
+    .shared-analysis-content { color: var(--ink); font: 16px/1.9 var(--zh); overflow-wrap: anywhere; }
+    .shared-analysis-content pre { margin: 0; white-space: pre-wrap; font: inherit; }
+    .shared-analysis-content img { display: block; max-width: 100%; max-height: 680px; margin-top: 20px; border: 1px solid var(--line-strong); border-radius: 16px; box-shadow: 0 18px 36px rgba(0,0,0,.14); }
+    .shared-analysis-content a { color: var(--cyan); }
+    .shared-analysis-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 30px; padding-top: 20px; border-top: 1px solid var(--line); }
+    .shared-analysis-actions .button { min-height: 44px; border-radius: 13px; }
+    .shared-analysis-note { margin-top: 16px; color: var(--ink-faint); font: 10px/1.7 var(--zh); text-align: center; }
+    .analysis-state { padding: 52px 24px; border: 1px solid var(--glass-edge); border-radius: 24px; color: var(--ink-soft); background: var(--glass); text-align: center; font: 14px var(--zh); }
+    @media (max-width: 520px) { .analysis-shell { width: min(100% - 22px, 880px); padding-top: 28px; }.shared-analysis-inner { padding: 24px 20px; }.shared-analysis-content { font-size: 15px; }.analysis-topbar { margin-bottom: 14px; } }
+  </style>
+</head>
+<body class="analysis-page">
+  <main class="analysis-shell" id="analysisApp">
+    <div class="analysis-state">正在加载分析卡片…</div>
+  </main>
+  <script type="module" src="analysis.js?v=20260903-08"></script>
+</body>
+</html>

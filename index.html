@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f141a">
+  <meta name="relay-api-base" content="">
+  <title>Relay Board · 跨设备中转板</title>
+  <link rel="stylesheet" href="styles.css?v=20260903-06">
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-cluster">
+        <button class="icon-button sidebar-toggle" id="sidebarToggle" type="button" aria-label="打开房间侧边栏" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+        <a class="brand" href="/" aria-label="Relay Board 首页">
+          <span class="brand-mark"><i></i><i></i><i></i></span>
+          <span><strong>Relay Board</strong><small>跨设备中转板</small></span>
+        </a>
+      </div>
+      <div class="topbar-right">
+        <span class="topbar-note">PRIVATE / NO LOGIN</span>
+        <button class="theme-toggle" id="themeToggle" type="button" aria-pressed="false" aria-label="切换到亮色主题">
+          <span class="theme-toggle-icon" aria-hidden="true">◐</span><span data-theme-label>亮色</span>
+        </button>
+        <button class="account-button" id="accountButton" type="button" aria-label="登录账户" aria-expanded="false"><span class="account-icon" aria-hidden="true">◉</span><span id="accountLabel">登录</span></button>
+        <div class="connection"><span class="status-dot" id="statusDot"></span><span id="connectionText">正在连接</span><button class="device-name-button" id="deviceNameButton" type="button" aria-label="编辑本设备名称"><span id="deviceNameText">本设备</span> ✎</button></div>
+      </div>
+    </header>
+
+    <aside class="room-sidebar" id="roomSidebar" aria-hidden="true">
+      <div class="room-sidebar-head"><div><span class="sidebar-kicker">ROOMS</span><strong>我的房间</strong></div><button class="icon-button sidebar-close" id="sidebarClose" type="button" aria-label="关闭侧边栏">×</button></div>
+      <button class="sidebar-new-room" id="sidebarNewRoom" type="button"><span>＋</span>开启新房间</button>
+      <div class="sidebar-section-label">最近访问</div>
+      <nav class="room-list" id="roomList" aria-label="房间列表"></nav>
+      <div class="room-sidebar-foot"><span class="sidebar-status-dot"></span><span id="sidebarModeLabel">本地静态模式</span></div>
+    </aside>
+    <div class="sidebar-backdrop" id="sidebarBackdrop" hidden></div>
+
+    <main class="layout">
+      <section class="board-column">
+        <div class="board-heading board-heading-hero" id="boardHeading">
+          <figure class="hero-visual">
+            <div class="relay-loader" role="img" aria-label="房间正在同步文字、图片和视频">
+              <div class="loader-frame" aria-hidden="true">
+                <span class="loader-block loader-block-wide"></span><span class="loader-block"></span><span class="loader-block loader-block-tall"></span><span class="loader-block loader-block-short"></span>
+                <i class="loader-scan"></i><i class="loader-route loader-route-a"></i><i class="loader-route loader-route-b"></i>
+              </div>
+              <div class="loader-status"><span class="loader-spinner"></span><span>SYNCING ROOM</span><b>LIVE</b></div>
+              <div class="loader-progress" aria-hidden="true"><span></span></div>
+            </div>
+            <figcaption><span>VISUAL MAP</span><span>TEXT <b>→</b> MEDIA <b>→</b> SYNC</span></figcaption>
+          </figure>
+          <div class="heading-copy">
+            <p class="eyebrow"><span class="eyebrow-mark"></span> LIVE ROOM / <span id="roomCode">--------</span></p>
+            <h1>把刚刚复制的东西，<em>放在这里。</em></h1>
+            <p class="lede">同一个房间链接，在电脑、手机、平板之间传递文字、图片和视频。</p>
+            <div class="heading-tags" aria-label="支持的内容类型">
+              <span class="legend-text">TEXT</span><span class="legend-media">MEDIA</span><span class="legend-sync">SYNCED</span>
+            </div>
+          </div>
+          <div class="heading-actions">
+            <div class="heading-action-buttons">
+              <button class="button quiet" id="addContentButton" type="button">添加内容 <span>↓</span></button>
+              <button class="button quiet" id="shareButton" type="button">复制网址</button>
+            </div>
+            <span class="copy-hint"><i></i>单击复制 · 双击发送最新消息</span>
+          </div>
+        </div>
+
+        <div class="board-feed card">
+        <div class="chat-history">
+          <div class="chat-history-head"><span>CHAT HISTORY <b id="itemCount">0</b></span><div class="history-tools"><span class="muted">新消息会出现在底部</span><button class="icon-button search-button" id="searchButton" type="button" aria-label="搜索消息记录" aria-expanded="false">⌕</button><div class="export-wrap"><button class="mini-button export-button" id="exportButton" type="button" aria-expanded="false">导出</button><div class="export-menu" id="exportMenu" hidden><strong>导出当前房间</strong><button type="button" data-export="text">文本格式 · TXT</button><button type="button" data-export="json">全部保存 · JSON</button><button type="button" data-export="codex">Codex 参考 · Markdown</button><button type="button" data-export="api">复制 CLI 读取地址</button></div></div></div></div>
+          <div class="history-search" id="historySearch" hidden><span>⌕</span><input id="historySearchInput" type="search" placeholder="搜索文字、设备或消息类型…" autocomplete="off"><button id="clearSearchButton" type="button" aria-label="关闭搜索">×</button></div>
+          <div class="message-rail" id="messageRail" aria-label="消息记录进度" hidden></div>
+          <div id="items" class="items" aria-live="polite"></div>
+          <div id="emptyState" class="empty"><span class="empty-icon">✦</span><strong>房间还是空的</strong><p>在下面粘贴一段文字，或者把图片、视频拖进来。</p></div>
+        </div>
+
+        <div class="composer">
+          <div class="composer-toolbar">
+            <span class="toolbar-label"><span class="toolbar-pulse"></span> QUICK DROP</span>
+            <label class="switch-label"><input type="checkbox" id="preserveFormat" checked><span class="switch"></span>保留粘贴格式</label>
+            <label class="file-button button quiet" for="fileInput">上传媒体<input id="fileInput" type="file" accept="image/*,video/*"></label>
+          </div>
+          <div class="editor-wrap">
+            <div id="editor" class="editor" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="从任意设备粘贴文字，或拖入一张图片 / 视频…"></div>
+            <div id="imageDraft" class="image-draft" hidden>
+              <img id="draftImage" alt="待发送图片">
+              <div class="image-draft-copy"><span class="image-draft-label">ATTACHED IMAGE</span><strong id="draftImageName">待发送图片</strong><span id="draftImageMeta">会和这条文字一起发送</span></div>
+              <button class="draft-remove" id="removeDraftImage" type="button" aria-label="移除待发送图片">×</button>
+            </div>
+          </div>
+          <div class="composer-footer">
+            <span id="formatHint">富文本会保留标题、列表、链接和基础样式；图片可和文字一起发送，超过 8MB 会询问压缩</span><span class="send-hint">Enter 发送 · Shift+Enter 换行</span>
+            <div class="send-actions">
+              <button class="icon-button paste-send-button" id="pasteSendButton" type="button" aria-label="粘贴并发送" title="粘贴并发送"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5.5h6M9.5 3.5h5a1 1 0 0 1 1 1v2h1.5a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-9a2 2 0 0 1-2-2v-10a2 2 0 0 1 2-2H10v-2a1 1 0 0 1 1-1Z"/><path d="m9 13 3 3 5-5"/></svg></button>
+              <div class="favorite-wrap">
+                <button class="icon-button favorite-button" id="favoriteButton" type="button" aria-label="打开收藏列表" aria-expanded="false">☆</button>
+                <div class="favorite-menu" id="favoriteMenu" hidden>
+                  <div class="favorite-menu-head"><strong>收藏消息</strong><span>点击放入输入框</span></div>
+                  <div id="favoriteList" class="favorite-list"></div>
+                </div>
+              </div>
+              <button class="button primary" id="sendButton" type="button">放入房间 <span>↗</span></button>
+            </div>
+          </div>
+        </div>
+        </div>
+
+      </section>
+
+      <aside class="side-column">
+        <div class="room-card card">
+          <div class="card-kicker">ROOM KEY</div>
+          <div class="room-key-row"><code id="roomKey">--------</code><button class="icon-button" id="copyKey" type="button" aria-label="复制房间密钥">⧉</button></div>
+          <div class="room-signal" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><span></span></div>
+          <p>链接就是房间钥匙。分享给谁，谁就能看见并编辑这里的内容。</p>
+          <button class="button outline full" id="newRoom" type="button">新建空房间</button>
+        </div>
+
+        <div class="analysis-card card">
+          <div class="card-kicker">OPTIONAL AI LENS</div>
+          <h2>让内容多看一眼<span class="heading-spark">+</span></h2>
+          <p>AI 接口配置后，可对房间里的文字、截图和资料做总结、提问或整理。</p>
+          <textarea id="analysisPrompt" rows="3" placeholder="例如：提取重点，列出待办事项…"></textarea>
+          <button class="button analysis-button full" id="analyzeButton" type="button">分析当前房间 <span>✦</span></button>
+          <div id="analysisResult" class="analysis-result" hidden></div>
+        </div>
+
+        <div class="how-card">
+          <span class="signal-line"></span>
+          <p><b>使用方式</b><br>在另一台设备打开同一链接。网页需要获得焦点后，才能读取浏览器剪贴板。</p>
+        </div>
+      </aside>
+    </main>
+    <nav class="page-progress" id="pageProgress" aria-label="网页位置">
+      <span class="page-progress-title">PAGE FLOW</span>
+      <div class="page-progress-track">
+        <span class="page-progress-fill" id="pageProgressFill"></span>
+        <button class="page-node page-node-top" id="pageTopNode" type="button" aria-label="跳到网页顶部"><i></i><span>TOP<small>网页顶部</small></span></button>
+        <button class="page-node page-node-bottom" id="pageComposerNode" type="button" aria-label="跳到输入框"><i></i><span>DROP<small>输入框</small></span></button>
+      </div>
+    </nav>
+    <div class="auth-dialog" id="authDialog" hidden>
+      <div class="auth-panel" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <button class="icon-button auth-close" id="authClose" type="button" aria-label="关闭登录窗口">×</button>
+        <div class="sidebar-kicker">ACCOUNT ACCESS</div>
+        <h2 id="authTitle">登录 Relay Board</h2>
+        <p class="auth-subtitle" id="authSubtitle">登录后可切换房间，并使用同步、上传与分享功能。</p>
+        <form id="loginForm" class="auth-form">
+          <label>账户名<input id="authUsername" name="username" autocomplete="username" placeholder="管理员或受邀账户" required></label>
+          <label>密码<input id="authPassword" name="password" type="password" autocomplete="current-password" placeholder="输入密码" required></label>
+          <div class="turnstile-wrap" id="turnstileWrap" hidden><div id="turnstileWidget"></div></div>
+          <button class="button primary full" type="submit">登录 <span>↗</span></button>
+          <div class="auth-error" id="authError" role="alert" hidden></div>
+        </form>
+        <div id="accountPane" class="account-pane" hidden>
+          <div class="account-summary"><span class="account-avatar">◉</span><div><strong id="accountName">管理员</strong><small id="accountRole">管理员账户</small></div></div>
+          <button class="button outline full" id="adminToggle" type="button" hidden>管理账户</button>
+          <button class="button quiet full" id="logoutButton" type="button">退出登录</button>
+          <div class="admin-panel" id="adminPanel" hidden>
+            <div class="sidebar-kicker">ADMIN PANEL</div>
+            <h3>添加账户</h3>
+            <form id="addUserForm" class="auth-form">
+              <label>新账户名<input id="newUsername" autocomplete="off" placeholder="例如：同事电脑" required></label>
+              <label>初始密码<input id="newPassword" type="password" autocomplete="new-password" placeholder="至少 8 位" required></label>
+              <button class="button outline full" type="submit">添加账户</button>
+            </form>
+            <div class="user-list" id="userList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div id="toast" class="toast" role="status"></div>
+  </div>
+  <script type="module" src="app.js?v=20260903-13"></script>
+</body>
+</html>
