@@ -135,7 +135,7 @@ const themeLabel = themeToggle.querySelector('[data-theme-label]');
 function applyTheme(theme) {
   const themeOrder = ['dark', 'light'];
   const themeNames = { dark: '深蓝', light: '亮色' };
-  const activeTheme = themeOrder.includes(theme) ? theme : 'ivory';
+  const activeTheme = themeOrder.includes(theme) ? theme : 'light';
   document.documentElement.dataset.theme = activeTheme;
   const nextTheme = themeOrder[(themeOrder.indexOf(activeTheme) + 1) % themeOrder.length];
   themeToggle.dataset.theme = activeTheme;
@@ -143,7 +143,7 @@ function applyTheme(theme) {
   themeToggle.setAttribute('aria-label', `切换到${themeNames[nextTheme]}风格`);
   themeLabel.textContent = themeNames[activeTheme];
 }
-const themeStorageKey = 'relay-board-theme-v4';
+const themeStorageKey = 'relay-board-theme-v5';
 let savedTheme = 'light';
 try { savedTheme = localStorage.getItem(themeStorageKey) || 'light'; } catch {}
 applyTheme(savedTheme);
@@ -670,7 +670,7 @@ async function submitComposer() {
   const payload = pendingImage
     ? { kind: 'bundle', text, html: rich ? editor.innerHTML : '', format: rich ? 'rich' : 'plain', data: pendingImage.data, originalData: pendingImage.originalData || undefined, mime: pendingImage.mime, name: pendingImage.name, clientId, deviceType, deviceName }
     : { kind: 'text', text, html: rich ? editor.innerHTML : '', format: rich ? 'rich' : 'plain', clientId, deviceType, deviceName };
-  const response = await fetch(apiUrl(`/api/room/${room}/items`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+  const response = await fetch(apiUrl(`/api/room/${room}/items`), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
   if (!response.ok) return showToast('内容没有放入房间');
   editor.innerHTML = ''; clearImageDraft(); composer?.classList.remove('is-expanded'); resizeComposerEditor(); showToast('已放入房间');
 }
@@ -680,7 +680,7 @@ async function submitFile(file) {
   if (file.size > 200 * 1024 * 1024) return showToast('文件超过 200MB 限制');
   const data = await readFileData(file);
   const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file';
-  const response = await fetch(apiUrl(`/api/room/${room}/items`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, data, mime: file.type, name: file.name, clientId, deviceType, deviceName }) });
+  const response = await fetch(apiUrl(`/api/room/${room}/items`), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, data, mime: file.type, name: file.name, clientId, deviceType, deviceName }) });
   if (!response.ok) return showToast('文件上传失败');
   showToast('媒体已放入房间');
 }
@@ -770,7 +770,7 @@ async function pasteClipboardAndSend() {
 }
 
 async function removeItem(id) {
-  const response = await fetch(apiUrl(`/api/room/${room}/items/${id}`), { method: 'DELETE' });
+  const response = await fetch(apiUrl(`/api/room/${room}/items/${id}`), { method: 'DELETE', credentials: 'include' });
   if (response.ok) { itemStore.delete(id); renderAll(); showToast('已移除'); }
 }
 
@@ -854,7 +854,7 @@ $('passwordToggle').onclick = () => { const panel = $('passwordPanel'); panel.hi
 $('passwordForm').addEventListener('submit', async (event) => { event.preventDefault(); const error = $('passwordError'); error.hidden = true; if ($('newAdminPassword').value !== $('confirmAdminPassword').value) { error.textContent = '两次新密码不一致'; error.hidden = false; return; } try { await authRequest('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword: $('currentPassword').value, newPassword: $('newAdminPassword').value }) }); $('passwordForm').reset(); $('passwordPanel').hidden = true; showToast('管理员密码已修改'); } catch (requestError) { error.textContent = requestError.message === 'current_password_invalid' ? '当前密码不正确' : requestError.message === 'password_invalid' ? '新密码至少 8 位' : '密码修改失败'; error.hidden = false; } });
 $('analyzeButton').onclick = async () => {
   const result = $('analysisResult'); result.hidden = false; result.textContent = '正在分析…';
-  try { const response = await fetch(apiUrl(`/api/room/${room}/analyze`), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: $('analysisPrompt').value }) }); const data = await response.json(); result.textContent = data.text || data.message || '没有可显示的分析结果。'; }
+  try { const response = await fetch(apiUrl(`/api/room/${room}/analyze`), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: $('analysisPrompt').value }) }); const data = await response.json(); result.textContent = data.text || data.message || '没有可显示的分析结果。'; }
   catch { result.textContent = '分析请求失败，请稍后再试。'; }
 };
 

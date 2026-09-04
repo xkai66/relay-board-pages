@@ -114,5 +114,5 @@ async function load() {
   } catch { showState('分析卡片加载失败，请稍后重试'); }
 }
 
-try { const savedTheme = localStorage.getItem('relay-board-theme-v4'); if (savedTheme === 'dark' || savedTheme === 'light') document.documentElement.dataset.theme = savedTheme; } catch {}
+try { const savedTheme = localStorage.getItem('relay-board-theme-v5'); if (savedTheme === 'dark' || savedTheme === 'light') document.documentElement.dataset.theme = savedTheme; } catch {}
 load();
