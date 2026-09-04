@@ -133,8 +133,8 @@ function revealPageProgress() {
 const themeToggle = $('themeToggle');
 const themeLabel = themeToggle.querySelector('[data-theme-label]');
 function applyTheme(theme) {
-  const themeOrder = ['dark', 'ivory'];
-  const themeNames = { dark: '深蓝', ivory: '亮色' };
+  const themeOrder = ['dark', 'light'];
+  const themeNames = { dark: '深蓝', light: '亮色' };
   const activeTheme = themeOrder.includes(theme) ? theme : 'ivory';
   document.documentElement.dataset.theme = activeTheme;
   const nextTheme = themeOrder[(themeOrder.indexOf(activeTheme) + 1) % themeOrder.length];
@@ -143,12 +143,12 @@ function applyTheme(theme) {
   themeToggle.setAttribute('aria-label', `切换到${themeNames[nextTheme]}风格`);
   themeLabel.textContent = themeNames[activeTheme];
 }
-const themeStorageKey = 'relay-board-theme-v3';
-let savedTheme = 'ivory';
-try { savedTheme = localStorage.getItem(themeStorageKey) || 'ivory'; } catch {}
+const themeStorageKey = 'relay-board-theme-v4';
+let savedTheme = 'light';
+try { savedTheme = localStorage.getItem(themeStorageKey) || 'light'; } catch {}
 applyTheme(savedTheme);
 themeToggle.onclick = () => {
-  const themeOrder = ['dark', 'ivory'];
+  const themeOrder = ['dark', 'light'];
   const current = themeToggle.dataset.theme || 'light';
   const nextTheme = themeOrder[(themeOrder.indexOf(current) + 1) % themeOrder.length];
   applyTheme(nextTheme);

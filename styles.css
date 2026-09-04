@@ -863,6 +863,59 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 :root[data-theme="ivory"] .message-rail-node i { background: rgba(49,65,74,.4); }
 :root[data-theme="ivory"] .auth-panel, :root[data-theme="ivory"] .room-sidebar { background: linear-gradient(145deg, rgba(255,251,243,.38), transparent 48%), rgba(239,235,226,.92); box-shadow: 0 28px 80px rgba(77,73,64,.18), inset 0 1px rgba(255,251,243,.76); }
 
+/* Final bright theme: soft GPT-like white and blue-gray, with no olive or green cast. */
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #e9eef0;
+  --surface: #f4f6f5;
+  --panel: #edf1f1;
+  --panel-deep: #dfe7e8;
+  --ink: #294354;
+  --ink-soft: #637c8c;
+  --ink-faint: #8b9da6;
+  --line: rgba(61, 105, 125, .2);
+  --line-strong: rgba(38, 143, 174, .48);
+  --cyan: #2c9fbd;
+  --blue: #4e78c7;
+  --magenta: #b455a3;
+  --violet: #7859c3;
+  --green: #279d83;
+  --amber: #c18a55;
+  --glass: rgba(247, 249, 247, .8);
+  --glass-soft: rgba(240, 244, 243, .72);
+  --glass-edge: rgba(255, 255, 255, .82);
+  --shadow: 0 24px 64px rgba(70, 104, 119, .16);
+}
+:root[data-theme="light"] body { background-color: #e9eef0 !important; background-image: radial-gradient(circle at 13% 19%, rgba(255,255,255,.34) 0 1px, transparent 1.5px), radial-gradient(circle at 78% 74%, rgba(91,116,128,.04) 0 1px, transparent 1.4px), repeating-linear-gradient(118deg, rgba(91,116,128,.016) 0 1px, transparent 1px 7px), linear-gradient(140deg, #eef2f2, #e5ebed 56%, #edf0ee) !important; background-size: 11px 11px, 17px 17px, auto, auto; }
+:root[data-theme="light"] .board-heading-hero { background: linear-gradient(135deg, rgba(255,255,255,.66), transparent 56%), linear-gradient(155deg, #eaf0f0, #f1f4f2 64%, #e6ecec) !important; border-color: rgba(43,150,181,.42); box-shadow: 0 24px 64px rgba(70,104,119,.16), inset 0 1px rgba(255,255,255,.92); }
+:root[data-theme="light"] .hero-visual { background: transparent !important; }
+:root[data-theme="light"] .hero-visual::before { border-color: rgba(43,150,181,.13); background: linear-gradient(90deg, rgba(255,255,255,.78), rgba(255,255,255,.36) 54%, transparent), linear-gradient(0deg, rgba(255,255,255,.34), transparent 54%, rgba(255,255,255,.26)); }
+:root[data-theme="light"] .hero-visual figcaption { background: rgba(231,237,237,.84); }
+:root[data-theme="light"] .relay-loader { background: radial-gradient(circle at 76% 45%, rgba(53,170,195,.12), transparent 30%), linear-gradient(135deg, #eef2ef, #e5ecec 56%, #f0e9ef) !important; }
+:root[data-theme="light"] .loader-frame { border-color: rgba(43,150,181,.34); background: linear-gradient(145deg, rgba(255,255,255,.72), rgba(231,240,240,.68)); box-shadow: inset 0 0 0 7px rgba(43,150,181,.035), 0 0 38px rgba(70,104,119,.1); }
+:root[data-theme="light"] .loader-frame::before { background: rgba(41,67,84,.18); box-shadow: 0 14px 0 rgba(43,150,181,.1), 0 28px 0 rgba(43,150,181,.055); }
+:root[data-theme="light"] .loader-frame::after { border-color: rgba(180,84,163,.34); background: linear-gradient(135deg, rgba(180,84,163,.09), transparent); }
+:root[data-theme="light"] .loader-block { background: linear-gradient(135deg, rgba(43,150,181,.14), rgba(43,150,181,.018)); }
+:root[data-theme="light"] .loader-block-short { background: linear-gradient(135deg, rgba(180,84,163,.14), rgba(180,84,163,.018)); }
+:root[data-theme="light"] .loader-status { color: rgba(41,67,84,.62); }
+:root[data-theme="light"] .loader-progress { background: rgba(43,150,181,.12); }
+:root[data-theme="light"] .card, :root[data-theme="light"] .board-feed { background: linear-gradient(145deg, rgba(255,255,255,.42), transparent 46%), var(--glass) !important; border-color: var(--line); box-shadow: var(--shadow), inset 0 1px var(--glass-edge); }
+:root[data-theme="light"] .chat-history { background: linear-gradient(180deg, rgba(255,255,255,.3), transparent 22%), transparent !important; }
+:root[data-theme="light"] .composer:not(.is-expanded), :root[data-theme="light"] .composer.is-expanded { background: linear-gradient(135deg, rgba(255,255,255,.46), transparent 58%), var(--glass) !important; box-shadow: 0 16px 34px rgba(70,104,119,.13), inset 0 1px var(--glass-edge); }
+:root[data-theme="light"] .editor, :root[data-theme="light"] .analysis-card textarea { background: rgba(251,252,250,.68) !important; }
+:root[data-theme="light"] .item { background: var(--panel) !important; box-shadow: 0 8px 24px rgba(70,104,119,.1); }
+:root[data-theme="light"] .item.mine { background: linear-gradient(145deg, #edf0ee, rgba(180,84,163,.1)) !important; border-color: rgba(180,84,163,.3); }
+:root[data-theme="light"] .item-content pre { background: #e4eaeb !important; color: var(--ink); }
+:root[data-theme="light"] .board-heading-hero .heading-action-buttons .button { background: rgba(248,250,248,.86) !important; border-color: rgba(43,150,181,.38); color: #315467; box-shadow: 0 8px 22px rgba(70,104,119,.11), inset 0 1px rgba(255,255,255,.94); }
+:root[data-theme="light"] .board-heading-hero .heading-action-buttons .button:first-child { background: rgba(226,245,247,.9) !important; color: #16839e; }
+:root[data-theme="light"] .board-heading-hero .heading-action-buttons .button:hover, :root[data-theme="light"] .board-heading-hero .heading-action-buttons .button:focus-visible { background: #ffffff !important; border-color: rgba(43,150,181,.68); color: #264757; box-shadow: 0 10px 26px rgba(70,104,119,.16), 0 0 14px rgba(43,150,181,.1), inset 0 1px rgba(255,255,255,.98); }
+:root[data-theme="light"] .page-progress-track { background: rgba(41,67,84,.38) !important; box-shadow: 0 0 0 1px rgba(255,255,255,.4); }
+:root[data-theme="light"] .page-progress-fill { background: linear-gradient(var(--cyan), var(--magenta)) !important; box-shadow: 0 0 8px rgba(43,150,181,.3); }
+:root[data-theme="light"] .message-rail-track { background: repeating-linear-gradient(to bottom, rgba(41,67,84,.3) 0 1px, transparent 1px 9px) !important; }
+:root[data-theme="light"] .message-rail-node i { background: rgba(41,67,84,.42) !important; }
+:root[data-theme="light"] .message-rail-node:hover i, :root[data-theme="light"] .message-rail-node.active i { background: linear-gradient(90deg, var(--cyan), var(--magenta)) !important; }
+:root[data-theme="light"] .auth-panel, :root[data-theme="light"] .room-sidebar { background: linear-gradient(145deg, rgba(255,255,255,.48), transparent 48%), rgba(244,247,245,.94) !important; box-shadow: 0 28px 80px rgba(70,104,119,.18), inset 0 1px rgba(255,255,255,.88); }
+
 /* Ivory material: a quiet, tactile light surface instead of a white flash. */
 :root[data-theme="ivory"] body {
   background-color: var(--bg);
