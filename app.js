@@ -143,7 +143,7 @@ function applyTheme(theme) {
   themeToggle.setAttribute('aria-label', `切换到${themeNames[nextTheme]}风格`);
   themeLabel.textContent = themeNames[activeTheme];
 }
-const themeStorageKey = 'relay-board-theme-v2';
+const themeStorageKey = 'relay-board-theme-v3';
 let savedTheme = 'ivory';
 try { savedTheme = localStorage.getItem(themeStorageKey) || 'ivory'; } catch {}
 applyTheme(savedTheme);
