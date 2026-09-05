@@ -199,6 +199,20 @@ function rememberRoom(name = roomMeta.name || '') {
   records.unshift({ room, name: String(name || '').slice(0, 80), seenAt: Date.now() });
   try { localStorage.setItem(roomHistoryKey, JSON.stringify(records.slice(0, 20))); } catch {}
 }
+async function syncRoomHistory() {
+  if (!authState.authenticated) return;
+  try {
+    const data = await authRequest('/api/auth/rooms'); const merged = new Map();
+    [...(data.rooms || []), ...readRoomHistory()].forEach((entry) => {
+      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(String(entry.room || ''))) return;
+      const current = merged.get(entry.room); const candidate = { room: entry.room, name: String(entry.name || '').slice(0, 80), seenAt: Number(entry.seenAt || 0) };
+      if (!current || candidate.seenAt >= current.seenAt) merged.set(entry.room, candidate);
+    });
+    const records = [...merged.values()].sort((a, b) => b.seenAt - a.seenAt).slice(0, 20);
+    try { localStorage.setItem(roomHistoryKey, JSON.stringify(records)); } catch {}
+    renderRoomList();
+  } catch { /* local history remains available while the backend is offline */ }
+}
 function renderRoomList() {
   roomList.replaceChildren();
   const query = String(roomSearch?.value || '').trim().toLowerCase();
@@ -658,7 +672,7 @@ function retryPendingUpload(localId) {
 
 async function loadRoom() {
   const response = await fetch(apiUrl(`/api/room/${room}`), { cache: 'no-store', credentials: 'include' }); if (!response.ok) throw new Error('room_load_failed');
-  const data = await response.json(); const pendingItems = [...itemStore.values()].filter((item) => item.pending); roomMeta = { name: data.name || `房间 ${room.slice(0, 6).toUpperCase()}`, canManage: Boolean(data.canManage) }; rememberRoom(roomMeta.name); renderRoomList(); renderRoomControls(); itemStore.clear(); data.items.forEach((item) => itemStore.set(item.id, item)); pendingItems.forEach((item) => { if (!itemStore.has(item.id)) itemStore.set(item.id, item); }); renderAll(); requestAnimationFrame(scrollToHash); saveRoomCache();
+  const data = await response.json(); const pendingItems = [...itemStore.values()].filter((item) => item.pending); roomMeta = { name: data.name || `房间 ${room.slice(0, 6).toUpperCase()}`, canManage: Boolean(data.canManage) }; rememberRoom(roomMeta.name); renderRoomList(); renderRoomControls(); itemStore.clear(); data.items.forEach((item) => itemStore.set(item.id, item)); pendingItems.forEach((item) => { if (!itemStore.has(item.id)) itemStore.set(item.id, item); }); renderAll(); requestAnimationFrame(scrollToHash); saveRoomCache(); void syncRoomHistory();
 }
 
 function scrollToHash() {
