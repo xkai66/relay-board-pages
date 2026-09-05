@@ -90,6 +90,7 @@ let toastTimer;
 let pendingImage = null;
 const pendingUploads = new Map();
 const enteringItemIds = new Set();
+let roomHistorySyncTimer;
 let searchQuery = '';
 let messageRailHideTimer;
 let pageProgressHideTimer;
@@ -213,6 +214,10 @@ async function syncRoomHistory() {
     renderRoomList();
   } catch { /* local history remains available while the backend is offline */ }
 }
+function scheduleRoomHistorySync() {
+  clearInterval(roomHistorySyncTimer); roomHistorySyncTimer = undefined;
+  if (authState.authenticated) roomHistorySyncTimer = window.setInterval(() => syncRoomHistory(), 30000);
+}
 function renderRoomList() {
   roomList.replaceChildren();
   const query = String(roomSearch?.value || '').trim().toLowerCase();
@@ -227,6 +232,7 @@ function renderRoomControls() { const visible = Boolean(roomMeta.canManage && au
 function toggleSidebar(open) {
   const next = open ?? !roomSidebar.classList.contains('is-open');
   roomSidebar.classList.toggle('is-open', next); roomSidebar.setAttribute('aria-hidden', String(!next)); sidebarToggle.setAttribute('aria-expanded', String(next)); sidebarBackdrop.hidden = !next;
+  if (next && authState.authenticated) void syncRoomHistory();
 }
 function setStaticMode(staticMode) {
   document.body.classList.toggle('guest-mode', staticMode);
@@ -246,7 +252,7 @@ function renderAccountState() {
   $('adminToggle').hidden = user?.role !== 'admin';
   $('passwordToggle').hidden = user?.role !== 'admin';
   if (user?.role !== 'admin') { $('adminPanel').hidden = true; $('passwordPanel').hidden = true; }
-  setStaticMode(authState.enabled && !authState.authenticated); renderRoomControls();
+  setStaticMode(authState.enabled && !authState.authenticated); renderRoomControls(); scheduleRoomHistorySync();
 }
 function openAuthDialog() { authError.hidden = true; authDialog.hidden = false; accountButton.setAttribute('aria-expanded', 'true'); if (!authState.user) $('authUsername').focus(); }
 function closeAuthDialog() { authDialog.hidden = true; accountButton.setAttribute('aria-expanded', 'false'); }
@@ -264,7 +270,7 @@ async function loadAuthSession() {
     const data = await response.json();
     authState = { enabled: Boolean(data.enabled), authenticated: Boolean(data.authenticated), user: data.user || null, turnstileSitekey: data.turnstileSitekey || null };
     renderAccountState();
-  } catch {}
+    } catch {}
 }
 async function authRequest(path, options = {}) {
   const response = await fetch(apiUrl(path), { ...options, credentials: 'include', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
@@ -1019,6 +1025,7 @@ editor.addEventListener('drop', (event) => { event.preventDefault(); const file 
 rememberRoom(); renderAccountState();
 window.addEventListener('online', () => { connectionRetryDelay = 1000; scheduleConnectionRetry(); });
 window.addEventListener('offline', () => setConnectionState('offline', itemStore.size > 0));
+document.addEventListener('visibilitychange', () => { if (!document.hidden && authState.authenticated) void syncRoomHistory(); });
 loadFavorites().catch(() => {}).then(loadAuthSession).then(() => {
   if (authState.enabled && !authState.authenticated) { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = '未登录 · 静态模式'; renderAll(); return; }
   return loadRoom().then(connectEvents);
