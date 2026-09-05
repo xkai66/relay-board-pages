@@ -3,7 +3,6 @@ const room = params.get('room') || '';
 const itemId = params.get('item') || '';
 const app = document.querySelector('#analysisApp');
 const apiBase = document.querySelector('meta[name="relay-api-base"]')?.content.trim().replace(/\/$/, '') || '';
-const maintenanceMode = document.querySelector('meta[name="relay-maintenance"]')?.content === '1';
 function apiUrl(path) { return `${apiBase}${path}`; }
 
 function escapeHtml(value) {
@@ -100,7 +99,6 @@ function renderItem(item) {
 }
 
 async function load() {
-  if (maintenanceMode) return showState('本地前端正在调试，分享页面暂时进入静默模式');
   if (!/^[a-zA-Z0-9_-]{8,64}$/.test(room) || !/^[-a-f0-9]{20,}$/i.test(itemId)) return showState('分享链接无效');
   try {
     const response = await fetch(apiUrl(`/api/room/${encodeURIComponent(room)}/export`), { credentials: 'include' });

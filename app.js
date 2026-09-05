@@ -1,8 +1,8 @@
 const params = new URLSearchParams(location.search);
 const makeRoom = () => crypto.randomUUID().replaceAll('-', '').slice(0, 12);
-const draftMode = params.get('new') === '1';
+let draftMode = params.get('new') === '1';
 const sidebarRequested = params.get('sidebar') === '1';
-const room = /^[a-zA-Z0-9_-]{8,64}$/.test(params.get('room') || '') ? params.get('room') : makeRoom();
+let room = /^[a-zA-Z0-9_-]{8,64}$/.test(params.get('room') || '') ? params.get('room') : makeRoom();
 if (!params.get('room') && !draftMode) history.replaceState(null, '', `?room=${room}`);
 let clientId = '';
 try { clientId = localStorage.getItem('relay-board-client-id') || ''; } catch {}
@@ -53,13 +53,13 @@ const pageProgressFill = $('pageProgressFill');
 const pageTopNode = $('pageTopNode');
 const pageComposerNode = $('pageComposerNode');
 const searchButton = $('searchButton');
+const imageVisibilityToggle = $('imageVisibilityToggle');
 const historySearch = $('historySearch');
 const historySearchInput = $('historySearchInput');
 const clearSearchButton = $('clearSearchButton');
 const itemsEl = $('items');
 const messageRail = $('messageRail');
 const apiBase = (document.querySelector('meta[name="relay-api-base"]')?.content || '').trim().replace(/\/$/, '');
-const maintenanceMode = document.querySelector('meta[name="relay-maintenance"]')?.content === '1';
 const apiUrl = (path) => `${apiBase}${path}`;
 const sidebarToggle = $('sidebarToggle');
 const sidebarClose = $('sidebarClose');
@@ -69,14 +69,27 @@ const roomList = $('roomList');
 const roomSearch = $('roomSearch');
 const renameRoomButton = $('renameRoom');
 const deleteRoomButton = $('deleteRoom');
+const joinRoomButton = $('joinRoom');
 const accountButton = $('accountButton');
 const accountLabel = $('accountLabel');
 const authDialog = $('authDialog');
+const actionDialog = $('actionDialog');
+const actionDialogTitle = $('actionDialogTitle');
+const actionDialogMessage = $('actionDialogMessage');
+const actionDialogInput = $('actionDialogInput');
+const actionDialogConfirm = $('actionDialogConfirm');
+const actionDialogCancel = $('actionDialogCancel');
+let actionDialogResolver;
 const authClose = $('authClose');
 const loginForm = $('loginForm');
 const accountPane = $('accountPane');
+const authSuccess = $('authSuccess');
 const authError = $('authError');
-let authState = { enabled: false, authenticated: false, user: null };
+let authState = { enabled: true, authenticated: false, user: null, loading: true };
+let authSessionRequestId = 0;
+let captchaChallengeId = '';
+let revealAllImages = false;
+const revealedImageIds = new Set();
 let roomMeta = { name: '', canManage: false };
 let turnstileWidgetId = null;
 let turnstileToken = '';
@@ -99,6 +112,7 @@ let messageRailHideTimer;
 let pageProgressHideTimer;
 const imageLimitBytes = 8 * 1024 * 1024;
 const imageHardLimitBytes = 200 * 1024 * 1024;
+const defaultGuestPolicy = { ttlHours: 12, messageLimit: 30, imageMaxBytes: 1024 * 1024, textMaxChars: 20000 };
 
 function updateComposerState() {
   if (!composer) return;
@@ -173,6 +187,25 @@ function showToast(message) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toast.classList.remove('show'), 2300);
 }
 
+function closeActionDialog(value = null) {
+  actionDialog.hidden = true;
+  const resolve = actionDialogResolver; actionDialogResolver = undefined;
+  resolve?.(value);
+}
+
+function openActionDialog({ title, message, inputValue = '', placeholder = '', confirmText = '确认', danger = false } = {}) {
+  closeActionDialog(null); actionDialogTitle.textContent = title || '确认操作'; actionDialogMessage.textContent = message || ''; actionDialogInput.value = inputValue; actionDialogInput.placeholder = placeholder; actionDialogInput.hidden = !inputValue && !placeholder;
+  actionDialogConfirm.textContent = confirmText; actionDialogConfirm.classList.toggle('danger', danger); actionDialog.hidden = false;
+  requestAnimationFrame(() => (actionDialogInput.hidden ? actionDialogConfirm : actionDialogInput).focus());
+  return new Promise((resolve) => { actionDialogResolver = resolve; });
+}
+
+actionDialogConfirm.onclick = () => closeActionDialog(actionDialogInput.hidden ? true : actionDialogInput.value);
+actionDialogCancel.onclick = () => closeActionDialog(null);
+$('actionDialogClose').onclick = () => closeActionDialog(null);
+actionDialog.addEventListener('click', (event) => { if (event.target === actionDialog) closeActionDialog(null); });
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !actionDialog.hidden) { event.preventDefault(); closeActionDialog(null); } });
+
 function setConnectionState(state, fromCache = false) {
   if (state === 'live') { $('statusDot').className = 'status-dot live'; $('connectionText').textContent = '房间已连接'; return; }
   if (state === 'offline') { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = fromCache ? '离线缓存 · 等待恢复' : '等待服务恢复'; return; }
@@ -197,6 +230,7 @@ async function restoreRoomCache() {
 }
 
 const roomHistoryKey = 'relay-board-room-history';
+const pendingRoomCreates = new Map();
 function readRoomHistory() { try { return JSON.parse(localStorage.getItem(roomHistoryKey) || '[]').filter((entry) => /^[a-zA-Z0-9_-]{8,64}$/.test(entry.room)); } catch { return []; } }
 function rememberRoom(name = roomMeta.name || '') {
   const records = readRoomHistory().filter((entry) => entry.room !== room);
@@ -212,14 +246,16 @@ async function navigateAfterRoomDeletion(deletedRoomId) {
   forgetLocalRoom(deletedRoomId);
   if (authState.authenticated) await syncRoomHistory();
   const fallback = readRoomHistory().find((entry) => entry.room !== deletedRoomId)?.room;
-  location.href = fallback ? `?room=${encodeURIComponent(fallback)}&sidebar=1` : '?new=1&sidebar=1';
+  if (fallback) return switchRoom(fallback, { keepSidebar: true });
+  return switchRoom(makeRoom(), { draft: true, keepSidebar: true });
 }
 async function syncRoomHistory() {
   if (!authState.authenticated) return;
   try {
     const data = await authRequest('/api/auth/rooms');
     const records = (data.rooms || []).filter((entry) => /^[a-zA-Z0-9_-]{8,64}$/.test(String(entry.room || ''))).map((entry) => ({ room: entry.room, name: String(entry.name || '').slice(0, 80), seenAt: Number(entry.seenAt || 0) })).sort((a, b) => b.seenAt - a.seenAt).slice(0, 20);
-    try { localStorage.setItem(roomHistoryKey, JSON.stringify(records)); } catch {}
+    const pending = readRoomHistory().filter((entry) => pendingRoomCreates.has(entry.room) && !records.some((serverEntry) => serverEntry.room === entry.room));
+    try { localStorage.setItem(roomHistoryKey, JSON.stringify([...records, ...pending].slice(0, 20))); } catch {}
     renderRoomList();
   } catch { /* local history remains available while the backend is offline */ }
 }
@@ -234,12 +270,12 @@ function renderRoomList() {
     const button = document.createElement('button'); button.type = 'button'; button.className = `room-list-item${entry.room === room ? ' is-current' : ''}`; button.disabled = authState.enabled && !authState.authenticated; button.dataset.requiresAuth = 'true';
     const copy = document.createElement('span'); copy.className = 'room-list-copy'; const name = document.createElement('strong'); name.textContent = entry.name || `房间 ${entry.room.slice(0, 6).toUpperCase()}`; const code = document.createElement('code'); code.textContent = entry.room.slice(0, 8).toUpperCase(); copy.append(name, code);
     const small = document.createElement('small'); small.textContent = entry.room === room ? '当前' : '房间';
-    button.append(copy, small); button.onclick = () => { if (!button.disabled) location.href = `?room=${encodeURIComponent(entry.room)}`; }; roomList.append(button);
+    button.append(copy, small); button.onclick = () => { if (!button.disabled && entry.room !== room) void switchRoom(entry.room); }; roomList.append(button);
   });
 }
-function renderRoomControls() { const visible = Boolean(roomMeta.canManage && authState.authenticated); renameRoomButton.hidden = !visible; deleteRoomButton.hidden = !visible; }
+function renderRoomControls() { const visible = Boolean(roomMeta.canManage && (authState.authenticated || !authState.enabled)); renameRoomButton.hidden = !visible; deleteRoomButton.hidden = !visible; }
 function setDraftRoomMode(enabled) {
-  if (!enabled) return;
+  if (!enabled) { setStaticMode(authState.enabled && !authState.authenticated); $('roomCode').textContent = room.slice(0, 8).toUpperCase(); $('roomKey').textContent = room; return; }
   $('roomCode').textContent = 'NEW ROOM'; $('roomKey').textContent = '—';
   ['addContentButton', 'shareButton', 'copyKey', 'sendButton', 'pasteSendButton', 'analyzeButton'].forEach((id) => { const element = $(id); if (element) element.disabled = true; });
   $('fileInput').disabled = true; $('fileInput').dataset.requiresAuth = 'true'; document.querySelector('label[for="fileInput"]')?.classList.add('is-auth-disabled');
@@ -251,24 +287,31 @@ function toggleSidebar(open) {
   if (next && authState.authenticated) void syncRoomHistory();
 }
 function setStaticMode(staticMode) {
-  document.body.classList.toggle('guest-mode', staticMode);
-  const remoteIds = ['addContentButton', 'shareButton', 'copyKey', 'newRoom', 'sendButton', 'pasteSendButton', 'analyzeButton'];
-  remoteIds.forEach((id) => { const element = $(id); if (element) { element.disabled = staticMode; element.dataset.requiresAuth = 'true'; } });
-  document.querySelector('label[for="fileInput"]')?.classList.toggle('is-auth-disabled', staticMode);
-  const fileInput = $('fileInput'); if (fileInput) { fileInput.disabled = staticMode; fileInput.dataset.requiresAuth = 'true'; }
-  $('sidebarNewRoom').disabled = staticMode; $('sidebarNewRoom').dataset.requiresAuth = 'true'; $('sidebarModeLabel').textContent = staticMode ? '未登录 · 静态模式' : '已登录 · 同步开启';
+  const guestMode = Boolean(staticMode && !authState.loading && authState.enabled && !authState.authenticated);
+  document.body.classList.toggle('guest-mode', guestMode);
+  const guestAllowedIds = new Set(['addContentButton', 'shareButton', 'copyKey', 'sendButton', 'pasteSendButton']);
+  const controlledIds = ['addContentButton', 'shareButton', 'copyKey', 'newRoom', 'joinRoom', 'sendButton', 'pasteSendButton', 'analyzeButton'];
+  controlledIds.forEach((id) => { const element = $(id); if (element) { element.disabled = Boolean(staticMode && !(guestMode && guestAllowedIds.has(id))); element.dataset.requiresAuth = String(!guestAllowedIds.has(id)); } });
+  const fileLabel = document.querySelector('label[for="fileInput"]');
+  fileLabel?.classList.toggle('is-auth-disabled', Boolean(staticMode && !guestMode));
+  const fileInput = $('fileInput'); if (fileInput) { fileInput.disabled = Boolean(staticMode && !guestMode); fileInput.accept = guestMode ? 'image/*' : 'image/*,video/*'; fileInput.dataset.requiresAuth = 'false'; }
+  if (fileLabel?.firstChild?.nodeType === Node.TEXT_NODE) fileLabel.firstChild.textContent = guestMode ? '上传图片' : '上传媒体';
+  $('sidebarNewRoom').disabled = Boolean(staticMode); $('sidebarNewRoom').dataset.requiresAuth = 'true';
+  $('sidebarModeLabel').textContent = authState.loading ? '正在验证账户…' : guestMode ? `访客模式 · ${authState.guestPolicy?.ttlHours || defaultGuestPolicy.ttlHours} 小时 / 最多 ${authState.guestPolicy?.messageLimit || defaultGuestPolicy.messageLimit} 条` : staticMode ? '未登录 · 只读模式' : '已登录 · 同步开启';
   renderRoomList(); renderRoomControls();
 }
 function renderAccountState() {
   const user = authState.user;
-  accountLabel.textContent = user ? user.username : '登录';
-  accountButton.setAttribute('aria-label', user ? `账户 ${user.username}` : '登录账户');
+  accountLabel.textContent = user ? user.username : authState.loading ? '验证中' : '登录';
+  accountButton.setAttribute('aria-label', user ? `账户 ${user.username}` : authState.loading ? '正在验证登录状态' : '登录账户');
+  accountButton.disabled = Boolean(authState.loading);
   $('accountName').textContent = user?.username || '账户'; $('accountRole').textContent = user?.role === 'admin' ? '管理员账户' : '普通账户';
   loginForm.hidden = Boolean(user); accountPane.hidden = !user;
+  authSuccess.hidden = !user;
   $('adminToggle').hidden = user?.role !== 'admin';
   $('passwordToggle').hidden = user?.role !== 'admin';
   if (user?.role !== 'admin') { $('adminPanel').hidden = true; $('passwordPanel').hidden = true; }
-  setStaticMode(authState.enabled && !authState.authenticated); renderRoomControls(); scheduleRoomHistorySync();
+  setStaticMode(authState.loading || (authState.enabled && !authState.authenticated)); renderRoomControls(); scheduleRoomHistorySync();
 }
 function openAuthDialog() { authError.hidden = true; authDialog.hidden = false; accountButton.setAttribute('aria-expanded', 'true'); if (!authState.user) $('authUsername').focus(); }
 function closeAuthDialog() { authDialog.hidden = true; accountButton.setAttribute('aria-expanded', 'false'); }
@@ -279,27 +322,39 @@ function ensureTurnstile() {
   if (window.turnstile) render();
   else if (!document.querySelector('#turnstileScript')) { const script = document.createElement('script'); script.id = 'turnstileScript'; script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'; script.async = true; script.defer = true; script.onload = render; document.head.append(script); }
 }
++async function loadBuiltInCaptcha() {
+  try {
+    const challenge = await authRequest('/api/auth/challenge');
+    captchaChallengeId = challenge.challengeId || '';
+    $('captchaQuestion').textContent = challenge.question || '请刷新验证码';
+    $('captchaAnswer').value = '';
+    $('captchaWrap').hidden = false;
+    $('turnstileWrap').hidden = true;
+    $('captchaAnswer').focus();
+  } catch { authError.textContent = '验证码加载失败，请稍后重试'; authError.hidden = false; }
+}
+async function ensureCaptcha() {
+  if (authState.captchaMode === 'turnstile' && authState.turnstileSitekey) { $('captchaWrap').hidden = true; ensureTurnstile(); return; }
+  await loadBuiltInCaptcha();
+}
 async function loadAuthSession() {
-  if (maintenanceMode) {
-    document.body.classList.add('maintenance-mode');
-    authState = { enabled: true, authenticated: false, user: null, maintenance: true };
-    renderAccountState();
-    accountLabel.textContent = '调试中';
-    accountButton.disabled = true;
-    $('connectionText').textContent = '本地调试中 · 静默模式';
-    $('sidebarModeLabel').textContent = '公网前端暂时只读';
-    return;
-  }
+  const requestId = ++authSessionRequestId;
   try {
     const response = await fetch(apiUrl('/api/auth/session'), { credentials: 'include', cache: 'no-store' });
-    if (!response.ok) return;
+    if (!response.ok) throw new Error('session_request_failed');
     const data = await response.json();
-    authState = { enabled: Boolean(data.enabled), authenticated: Boolean(data.authenticated), user: data.user || null, turnstileSitekey: data.turnstileSitekey || null };
+    if (requestId !== authSessionRequestId) return authState;
+    authState = { enabled: Boolean(data.enabled), authenticated: Boolean(data.authenticated), user: data.user || null, turnstileSitekey: data.turnstileSitekey || null, captchaMode: data.captchaMode || 'built-in', guestPolicy: data.guestPolicy || defaultGuestPolicy, loading: false };
     renderAccountState();
-    } catch {}
+  } catch {
+    if (requestId !== authSessionRequestId) return authState;
+    authState = { ...authState, enabled: true, authenticated: false, user: null, loading: false };
+    renderAccountState();
+  }
+  return authState;
 }
 async function authRequest(path, options = {}) {
-  const response = await fetch(apiUrl(path), { ...options, credentials: 'include', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
+  const response = await fetch(apiUrl(path), { ...options, credentials: 'include', cache: 'no-store', headers: { 'Content-Type': 'application/json', ...(options.headers || {}) } });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'auth_request_failed');
   return data;
@@ -312,7 +367,7 @@ async function loadAdminUsers() {
 }
 function openUserEditor(user) { $('editUserId').value = user.id; $('editUsername').value = user.username; $('editPassword').value = ''; $('editDisabled').checked = Boolean(user.disabled); $('editUserError').hidden = true; $('userEditor').hidden = false; $('editUsername').focus(); }
 function closeUserEditor() { $('userEditor').hidden = true; $('editUserForm').reset(); }
-async function deleteUser(user) { if (!window.confirm(`确定删除账户“${user.username}”吗？`)) return; try { await authRequest(`/api/auth/users/${encodeURIComponent(user.id)}`, { method: 'DELETE' }); closeUserEditor(); loadAdminUsers(); showToast('账户已删除'); } catch (error) { showToast(error.message === 'user_not_found' ? '账户不存在' : '删除账户失败'); } }
+async function deleteUser(user) { const confirmed = await openActionDialog({ title: '删除账户', message: `确定删除账户“${user.username}”吗？此操作不可撤销。`, confirmText: '删除账户', danger: true }); if (!confirmed) return; try { await authRequest(`/api/auth/users/${encodeURIComponent(user.id)}`, { method: 'DELETE' }); closeUserEditor(); loadAdminUsers(); showToast('账户已删除'); } catch (error) { showToast(error.message === 'user_not_found' ? '账户不存在' : '删除账户失败'); } }
 
 const favoriteDbName = 'relay-board-favorites';
 function openFavoriteDb() {
@@ -540,7 +595,15 @@ function appendItemText(content, item) {
 
 function appendItemImage(content, item) {
   if (!item.data) return;
-  const img = document.createElement('img'); img.className = 'item-media'; img.src = item.data; img.alt = item.name || '上传图片'; content.append(img);
+  const revealed = revealAllImages || revealedImageIds.has(item.id);
+  const wrapper = document.createElement('button'); wrapper.type = 'button'; wrapper.className = `image-privacy-frame${revealed ? ' is-revealed' : ''}`; wrapper.setAttribute('aria-label', revealed ? '隐藏这张图片' : '点击查看这张图片');
+  const img = document.createElement('img'); img.className = 'item-media'; img.src = item.data; img.alt = revealed ? (item.name || '上传图片') : '图片已隐藏，点击查看'; img.loading = 'lazy'; img.decoding = 'async';
+  const veil = document.createElement('span'); veil.className = 'image-privacy-veil'; veil.innerHTML = '<span class="image-privacy-eye">◉</span><strong>图片已隐藏</strong><small>点击查看</small>';
+  wrapper.onclick = () => {
+    if (wrapper.classList.toggle('is-revealed')) revealedImageIds.add(item.id); else revealedImageIds.delete(item.id);
+    wrapper.setAttribute('aria-label', wrapper.classList.contains('is-revealed') ? '隐藏这张图片' : '点击查看这张图片');
+  };
+  wrapper.append(img, veil); content.append(wrapper);
 }
 
 function renderItem(item) {
@@ -577,11 +640,12 @@ function renderItem(item) {
     actions.append(analysisLink);
     const favorite = document.createElement('button'); favorite.className = 'mini-button favorite-action'; favorite.textContent = favoriteStore.has(item.id) ? '★ 已收藏' : '☆ 收藏'; favorite.onclick = () => toggleFavorite(item);
     const remove = document.createElement('button'); remove.className = 'mini-button'; remove.textContent = '移除'; remove.onclick = () => removeItem(item.id);
-    actions.append(favorite, remove);
+    actions.append(favorite); if (authState.authenticated || !authState.enabled) actions.append(remove);
   }
   const device = `${itemDeviceLabel(item)}${item.deviceName ? ` · ${escapeHtml(item.deviceName)}` : ''}`;
-  node.innerHTML = `<div class="item-meta"><span class="item-sender">${mine ? '我' : '其他设备'}</span><span class="item-device">${device}</span><span class="item-kind">${kind}</span><time>${relativeTime(item.createdAt)}</time></div>`;
+  node.innerHTML = `<div class="item-meta"><span class="item-sender">${item.guest ? (mine ? '我 · 访客' : '访客') : mine ? '我' : '其他设备'}</span><span class="item-device">${device}</span><span class="item-kind">${kind}</span><time>${relativeTime(item.createdAt)}</time></div>`;
   if (item.pending) { const status = document.createElement('span'); status.className = `item-upload-state ${item.uploadState === 'failed' ? 'failed' : ''}`; status.textContent = item.uploadState === 'failed' ? '上传失败' : '上传中'; node.querySelector('.item-meta').append(status); }
+  else if (item.guest && item.expiresAt) { const expiry = document.createElement('span'); expiry.className = 'guest-expiry'; expiry.textContent = `${Math.max(1, Math.ceil((Number(item.expiresAt) - Date.now()) / 3600000))} 小时后清理`; node.querySelector('.item-meta').append(expiry); }
   node.addEventListener('dblclick', (event) => { if (!event.target.closest('button, a, .url-menu')) copyItem(item).catch(() => showToast('复制失败')); });
   node.append(content, actions); return node;
 }
@@ -637,6 +701,12 @@ function updateMessageRail(forcedIndex = null) {
 function renderAll() {
   const nearBottom = itemsEl.scrollHeight - itemsEl.scrollTop - itemsEl.clientHeight < 80;
   const records = visibleItems();
+  const imageCount = records.filter((item) => item.data && String(item.mime || '').startsWith('image/')).length;
+  imageVisibilityToggle.hidden = imageCount === 0;
+  imageVisibilityToggle.setAttribute('aria-pressed', String(revealAllImages));
+  imageVisibilityToggle.setAttribute('aria-label', revealAllImages ? '隐藏全部图片' : '显示全部图片');
+  imageVisibilityToggle.title = revealAllImages ? '隐藏全部图片' : `显示全部图片（${imageCount}）`;
+  imageVisibilityToggle.classList.toggle('is-active', revealAllImages);
   itemsEl.replaceChildren(...records.map(renderItem));
   const enteringNow = [...enteringItemIds];
   if (enteringNow.length) window.setTimeout(() => enteringNow.forEach((id) => enteringItemIds.delete(id)), 720);
@@ -663,7 +733,8 @@ function markPendingFailed(localId, error) {
   const item = itemStore.get(localId);
   if (!item) return;
   item.uploadState = 'failed'; item.uploadError = error?.message || 'upload_failed';
-  itemStore.set(localId, item); renderAll(); saveRoomCache(); showToast('消息已显示，但上传失败，可点击重试');
+  const messages = { guest_message_limit: '访客在这个房间已达到 30 条上限', guest_ip_limit: '当前网络的访客发送量已达上限', guest_room_limit: '这个房间的访客消息暂时已满', guest_rate_limited: '发送太快，请一分钟后再试', guest_image_too_large: '访客图片必须压缩到 1MB 以下', guest_text_too_large: '访客文字超过长度限制', guest_kind_not_allowed: '访客只能发送文字和图片' };
+  itemStore.set(localId, item); renderAll(); saveRoomCache(); showToast(messages[item.uploadError] || '消息已显示，但上传失败，可点击重试');
 }
 
 function replacePendingItem(localId, uploadedItem) {
@@ -682,7 +753,7 @@ async function uploadPendingItem(localId) {
     const data = await response.json().catch(() => ({}));
     if (!response.ok || !data.item) throw new Error(data.error || 'upload_failed');
     replacePendingItem(localId, data.item);
-    showToast('上传完成');
+    showToast(data.guest ? `访客消息已保存 · 还可发送 ${data.guest.remaining} 条` : '上传完成');
   } catch (error) {
     if (!itemStore.has(localId)) return;
     markPendingFailed(localId, error);
@@ -705,6 +776,16 @@ function retryPendingUpload(localId) {
 async function loadRoom() {
   const response = await fetch(apiUrl(`/api/room/${room}`), { cache: 'no-store', credentials: 'include' }); if (!response.ok) throw new Error('room_load_failed');
   const data = await response.json(); const pendingItems = [...itemStore.values()].filter((item) => item.pending); roomMeta = { name: data.name || `房间 ${room.slice(0, 6).toUpperCase()}`, canManage: Boolean(data.canManage) }; rememberRoom(roomMeta.name); renderRoomList(); renderRoomControls(); itemStore.clear(); data.items.forEach((item) => itemStore.set(item.id, item)); pendingItems.forEach((item) => { if (!itemStore.has(item.id)) itemStore.set(item.id, item); }); renderAll(); requestAnimationFrame(scrollToHash); saveRoomCache(); void syncRoomHistory();
+}
+
+async function switchRoom(nextRoom, { draft = false, keepSidebar = roomSidebar.classList.contains('is-open'), optimistic = false, roomName = '' } = {}) {
+  if (!draft && !/^[a-zA-Z0-9_-]{8,64}$/.test(nextRoom)) return showToast('房间密钥格式不正确');
+  eventSource?.close(); eventSource = undefined; room = nextRoom; draftMode = draft; revealAllImages = false; revealedImageIds.clear(); itemStore.clear(); roomMeta = { name: draft ? '待创建房间' : roomName, canManage: Boolean(optimistic) }; $('roomCode').textContent = draft ? 'NEW ROOM' : room.slice(0, 8).toUpperCase(); $('roomKey').textContent = draft ? '—' : room; renderAll();
+  const query = draft ? '?new=1' : `?room=${encodeURIComponent(nextRoom)}`; history.replaceState(null, '', `${query}${keepSidebar ? '&sidebar=1' : ''}`);
+  if (draft) { setDraftRoomMode(true); renderRoomList(); return; }
+  setDraftRoomMode(false); renderRoomList(); if (optimistic) { setConnectionState('connecting'); $('connectionText').textContent = '正在准备房间'; return; }
+  try { await loadRoom(); connectEvents(); }
+  catch { const fromCache = await restoreRoomCache(); setConnectionState('offline', fromCache); }
 }
 
 function scrollToHash() {
@@ -762,7 +843,7 @@ function canvasBlob(canvas, type, quality) {
   return new Promise((resolve, reject) => canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('image_encode_failed')), type, quality));
 }
 
-async function compressImage(file) {
+async function compressImage(file, targetBytes = imageLimitBytes) {
   const image = await imageFromFile(file);
   const maxSides = [2560, 2200, 1900, 1600, 1400];
   const qualities = [.84, .76, .68, .58, .48];
@@ -773,7 +854,7 @@ async function compressImage(file) {
     canvas.getContext('2d').drawImage(image, 0, 0, canvas.width, canvas.height);
     for (const quality of qualities) {
       const blob = await canvasBlob(canvas, outputType, quality);
-      if (blob.size <= imageLimitBytes) return { file: new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'image'}.webp`, { type: outputType }), originalBytes: file.size, compressedBytes: blob.size };
+      if (blob.size <= targetBytes) return { file: new File([blob], `${file.name.replace(/\.[^.]+$/, '') || 'image'}.webp`, { type: outputType }), originalBytes: file.size, compressedBytes: blob.size };
     }
   }
   throw new Error('image_compress_failed');
@@ -781,36 +862,43 @@ async function compressImage(file) {
 
 async function queueImage(file) {
   if (!file || !file.type.startsWith('image/')) return showToast('这里只能加入图片');
+  const guestMode = Boolean(authState.enabled && !authState.authenticated);
+  const guestLimit = Number(authState.guestPolicy?.imageMaxBytes || defaultGuestPolicy.imageMaxBytes);
+  if (guestMode && file.size > 25 * 1024 * 1024) return showToast('访客图片原文件不能超过 25MB');
   if (file.size > imageHardLimitBytes) return showToast('图片超过 200MB 限制');
   let selectedFile = file; let compressed = false;
-  if (file.size > imageLimitBytes) {
-    if (!window.confirm(`这张图片是 ${formatBytes(file.size)}，超过 ${formatBytes(imageLimitBytes)} 限制。是否压缩后放入房间？`)) return showToast('已取消加入图片');
+  if (guestMode && (file.size > guestLimit || !/^image\/(?:png|jpe?g|webp)$/i.test(file.type))) {
+    try { selectedFile = (await compressImage(file, guestLimit)).file; compressed = true; }
+    catch { return showToast('图片无法压缩到 1MB 以下'); }
+  } else if (!guestMode && file.size > imageLimitBytes) {
+    const confirmed = await openActionDialog({ title: '图片需要压缩', message: `这张图片是 ${formatBytes(file.size)}，超过 ${formatBytes(imageLimitBytes)} 限制。压缩后再放入房间？`, confirmText: '压缩并继续' }); if (!confirmed) return showToast('已取消加入图片');
     selectedFile = (await compressImage(file)).file; compressed = true;
   }
   if (pendingImage?.previewUrl) URL.revokeObjectURL(pendingImage.previewUrl);
   const previewUrl = URL.createObjectURL(selectedFile);
-  pendingImage = { data: await readFileData(selectedFile), originalData: compressed ? await readFileData(file) : '', mime: selectedFile.type, name: selectedFile.name, previewUrl };
-  draftImage.src = previewUrl; draftImageName.textContent = selectedFile.name || '待发送图片'; draftImageMeta.textContent = compressed ? `已压缩到 ${formatBytes(selectedFile.size)}，会和这条文字一起发送` : `图片 ${formatBytes(selectedFile.size)}，会和这条文字一起发送`; imageDraft.hidden = false; updateComposerState(); showToast(compressed ? '图片已压缩并加入当前消息' : '图片已加入当前消息');
+  pendingImage = { data: await readFileData(selectedFile), originalData: !guestMode && compressed ? await readFileData(file) : '', mime: selectedFile.type, name: selectedFile.name, previewUrl };
+  draftImage.src = previewUrl; draftImageName.textContent = selectedFile.name || '待发送图片'; draftImageMeta.textContent = guestMode ? `访客图片 ${formatBytes(selectedFile.size)} · 发送后保存 ${authState.guestPolicy?.ttlHours || 12} 小时` : compressed ? `已压缩到 ${formatBytes(selectedFile.size)}，会和这条文字一起发送` : `图片 ${formatBytes(selectedFile.size)}，会和这条文字一起发送`; imageDraft.hidden = false; updateComposerState(); showToast(guestMode ? '访客图片已处理到 1MB 以下' : compressed ? '图片已压缩并加入当前消息' : '图片已加入当前消息');
 }
 
 async function submitComposer() {
   if (draftMode) return showToast('请先开启新房间');
-  if (authState.enabled && !authState.authenticated) return showToast('登录后才能发送内容');
-  const rich = $('preserveFormat').checked;
+  const guestMode = Boolean(authState.enabled && !authState.authenticated);
+  const rich = !guestMode && $('preserveFormat').checked;
   const text = editor.innerText.trim();
   if (!text && !pendingImage) return showToast('先输入文字或加入一张图片');
+  if (guestMode && text.length > Number(authState.guestPolicy?.textMaxChars || defaultGuestPolicy.textMaxChars)) return showToast('访客文字超过长度限制');
   const payload = pendingImage
     ? { kind: 'bundle', text, html: rich ? editor.innerHTML : '', format: rich ? 'rich' : 'plain', data: pendingImage.data, originalData: pendingImage.originalData || undefined, mime: pendingImage.mime, name: pendingImage.name, clientId, deviceType, deviceName }
     : { kind: 'text', text, html: rich ? editor.innerHTML : '', format: rich ? 'rich' : 'plain', clientId, deviceType, deviceName };
   const localItem = stagePendingUpload({ ...payload, clientMessageId: `msg-${crypto.randomUUID()}` }, { previewData: payload.data || '' });
-  editor.innerHTML = ''; clearImageDraft(); composer?.classList.remove('is-expanded'); resizeComposerEditor(); showToast('已发送，正在上传…');
+  editor.innerHTML = ''; clearImageDraft(); composer?.classList.remove('is-expanded'); resizeComposerEditor(); showToast(guestMode ? `已发送 · 访客消息保存 ${authState.guestPolicy?.ttlHours || 12} 小时` : '已发送，正在上传…');
   return localItem;
 }
 
 async function submitFile(file) {
   if (!file) return;
   if (draftMode) return showToast('请先开启新房间');
-  if (authState.enabled && !authState.authenticated) return showToast('登录后才能上传内容');
+  if (authState.enabled && !authState.authenticated) return showToast('访客只能发送文字和 1MB 以下图片');
   if (file.size > 200 * 1024 * 1024) return showToast('文件超过 200MB 限制');
   const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file';
   const clientMessageId = `msg-${crypto.randomUUID()}`; const previewUrl = URL.createObjectURL(file);
@@ -922,8 +1010,8 @@ $('fileInput').onchange = (event) => {
 };
 $('removeDraftImage').onclick = clearImageDraft;
 $('preserveFormat').onchange = (event) => { $('formatHint').textContent = event.target.checked ? '富文本会保留标题、列表、链接和基础样式；图片可和文字一起发送，超过 8MB 会询问压缩' : '只保留纯文字，适合复制命令和配置；图片可和文字一起发送，超过 8MB 会询问压缩'; };
-$('deviceNameButton').onclick = () => {
-  const next = window.prompt('给这台设备起个名字（例如：办公室电脑）', deviceName);
+$('deviceNameButton').onclick = async () => {
+  const next = await openActionDialog({ title: '设备名称', message: '给这台设备起个名字，方便在房间里识别。', inputValue: deviceName, placeholder: '例如：办公室电脑', confirmText: '保存' });
   if (next === null) return;
   const value = next.trim().slice(0, 32);
   if (!value) return showToast('设备名称不能为空');
@@ -935,6 +1023,7 @@ $('favoriteButton').onclick = (event) => { event.stopPropagation(); const open =
 exportButton.onclick = (event) => { event.stopPropagation(); const open = exportMenu.hidden; exportMenu.hidden = !open; exportButton.setAttribute('aria-expanded', String(open)); };
 exportMenu.querySelectorAll('[data-export]').forEach((button) => { button.onclick = () => exportRoom(button.dataset.export); });
 searchButton.onclick = (event) => { event.stopPropagation(); const open = historySearch.hidden; historySearch.hidden = !open; searchButton.setAttribute('aria-expanded', String(open)); if (open) historySearchInput.focus(); };
+imageVisibilityToggle.onclick = () => { revealAllImages = !revealAllImages; if (!revealAllImages) revealedImageIds.clear(); renderAll(); showToast(revealAllImages ? '已显示房间内全部图片' : '已重新隐藏房间内图片'); };
 historySearchInput.oninput = (event) => { searchQuery = event.target.value; renderAll(); };
 clearSearchButton.onclick = () => { searchQuery = ''; historySearchInput.value = ''; historySearch.hidden = true; searchButton.setAttribute('aria-expanded', 'false'); renderAll(); };
 document.addEventListener('click', (event) => {
@@ -974,36 +1063,73 @@ updatePageProgress();
 $('copyKey').onclick = () => navigator.clipboard.writeText(room).then(() => showToast('房间密钥已复制'));
 async function createRoomAndNavigate() {
   if ($('newRoom').disabled) return;
-  const name = window.prompt('给新房间起个名称', '新房间'); if (name === null) return;
+  const name = await openActionDialog({ title: '开启新房间', message: '给新房间起个名称。', inputValue: '新房间', confirmText: '创建房间' }); if (name === null || !name.trim()) return;
   const nextRoom = makeRoom();
-  try { await authRequest(`/api/room/${nextRoom}`, { method: 'POST', body: JSON.stringify({ name }) }); location.href = `?room=${nextRoom}`; }
-  catch { showToast('新房间创建失败'); }
+  pendingRoomCreates.set(nextRoom, { name: name.trim() }); await switchRoom(nextRoom, { optimistic: true, roomName: name.trim(), keepSidebar: roomSidebar.classList.contains('is-open') }); rememberRoom(name.trim()); renderRoomList(); showToast('房间已打开，正在后台创建…');
+  try { await authRequest(`/api/room/${nextRoom}`, { method: 'POST', body: JSON.stringify({ name }) }); pendingRoomCreates.delete(nextRoom); renderRoomList(); if (room === nextRoom) { await loadRoom(); connectEvents(); } void syncRoomHistory(); showToast('房间创建完成'); }
+  catch { pendingRoomCreates.delete(nextRoom); forgetLocalRoom(nextRoom); if (room === nextRoom) await switchRoom(makeRoom(), { draft: true, keepSidebar: true }); showToast('房间创建失败，已回滚'); }
+}
+async function joinRoomAndNavigate() {
+  if (joinRoomButton.disabled) return;
+  const value = await openActionDialog({ title: '加入房间', message: '输入对方分享的房间密钥即可加入。', placeholder: '例如：75904f567fe5', confirmText: '加入房间' });
+  const nextRoom = String(value || '').trim(); if (!nextRoom) return;
+  if (!/^[a-zA-Z0-9_-]{8,64}$/.test(nextRoom)) return showToast('房间密钥格式不正确');
+  await switchRoom(nextRoom, { keepSidebar: true, optimistic: true }); showToast('已打开房间，正在后台读取…');
+  try { await loadRoom(); connectEvents(); showToast('房间已同步'); } catch { showToast('房间读取失败，当前页面未改动服务器数据'); }
 }
 async function renameCurrentRoom() {
   if (!roomMeta.canManage) return;
-  const name = window.prompt('修改房间名称', roomMeta.name || '未命名房间'); if (name === null || !name.trim()) return;
-  try { const data = await authRequest(`/api/room/${room}/meta`, { method: 'PATCH', body: JSON.stringify({ name }) }); roomMeta.name = data.name; rememberRoom(roomMeta.name); renderRoomList(); showToast('房间名称已修改'); }
-  catch (error) { showToast(error.message === 'room_owner_required' ? '只有创房人可以修改名称' : '房间名称修改失败'); }
+  const name = await openActionDialog({ title: '修改房间名称', message: '房间名称只影响显示，不会改变房间密钥。', inputValue: roomMeta.name || '未命名房间', confirmText: '保存' }); if (name === null || !name.trim()) return;
+  const previousName = roomMeta.name; roomMeta.name = name.trim(); rememberRoom(roomMeta.name); renderRoomList(); showToast('名称已更新，正在同步…');
+  try { const data = await authRequest(`/api/room/${room}/meta`, { method: 'PATCH', body: JSON.stringify({ name: roomMeta.name }) }); roomMeta.name = data.name; rememberRoom(roomMeta.name); renderRoomList(); showToast('房间名称已同步'); }
+  catch (error) { roomMeta.name = previousName; rememberRoom(previousName); renderRoomList(); showToast(error.message === 'room_owner_required' ? '只有创房人可以修改名称' : '名称同步失败，已恢复原名称'); }
 }
 async function deleteCurrentRoom() {
-  if (!roomMeta.canManage || !window.confirm(`确定删除房间“${roomMeta.name || room.slice(0, 8).toUpperCase()}”吗？`)) return;
+  if (!roomMeta.canManage) return;
+  const confirmed = await openActionDialog({ title: '删除房间', message: `确定删除房间“${roomMeta.name || room.slice(0, 8).toUpperCase()}”吗？房间内容会从服务器移除，此操作不可撤销。`, confirmText: '删除房间', danger: true }); if (!confirmed) return;
   try { await authRequest(`/api/room/${room}`, { method: 'DELETE' }); await navigateAfterRoomDeletion(room); }
   catch (error) { showToast(error.message === 'room_owner_required' ? '只有创房人可以删除房间' : '房间删除失败'); }
 }
 $('newRoom').onclick = createRoomAndNavigate;
 $('sidebarNewRoom').onclick = createRoomAndNavigate;
+joinRoomButton.onclick = joinRoomAndNavigate;
 renameRoomButton.onclick = renameCurrentRoom;
 deleteRoomButton.onclick = deleteCurrentRoom;
 roomSearch?.addEventListener('input', renderRoomList);
 $('sidebarToggle').onclick = () => toggleSidebar(); $('sidebarClose').onclick = () => toggleSidebar(false); $('sidebarBackdrop').onclick = () => toggleSidebar(false);
 $('accountButton').onclick = () => { if (authState.user) { authDialog.hidden = false; accountButton.setAttribute('aria-expanded', 'true'); } else openAuthDialog(); };
 $('authClose').onclick = closeAuthDialog;
-authDialog.addEventListener('click', (event) => { if (event.target === authDialog) closeAuthDialog(); });
+// Do not close on backdrop clicks: dragging to select a password can release on the overlay.
 loginForm.addEventListener('submit', async (event) => {
   event.preventDefault(); authError.hidden = true;
-  try { const data = await authRequest('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: $('authUsername').value.trim(), password: $('authPassword').value, turnstileToken }) }); authState = { enabled: true, authenticated: true, user: data.user }; renderAccountState(); closeAuthDialog(); showToast('登录成功'); location.reload(); }
-  catch (error) { authError.textContent = error.message === 'captcha_required' ? '请完成验证码后再试' : error.message === 'too_many_attempts' ? '尝试次数过多，请稍后再试' : error.message === 'setup_required' ? '管理员账户尚未初始化' : '账户名或密码不正确'; authError.hidden = false; if (error.message === 'captcha_required') ensureTurnstile(); }
+  const submitButton = loginForm.querySelector('button[type="submit"]');
+  const previousButtonText = submitButton.innerHTML;
+  submitButton.disabled = true; submitButton.textContent = '正在登录…';
+  const loginRequestId = ++authSessionRequestId;
+  try {
+    const data = await authRequest('/api/auth/login', { method: 'POST', body: JSON.stringify({ username: $('authUsername').value.trim(), password: $('authPassword').value, turnstileToken, challengeId: captchaChallengeId, captchaAnswer: $('captchaAnswer').value }) });
+    const verification = await authRequest('/api/auth/session');
+    if (!verification.authenticated || !verification.user) throw new Error('session_not_persisted');
+    if (loginRequestId !== authSessionRequestId) return;
+    authState = { ...authState, enabled: true, authenticated: true, user: verification.user || data.user, turnstileSitekey: verification.turnstileSitekey || null, loading: false };
+    captchaChallengeId = ''; $('captchaWrap').hidden = true; $('captchaAnswer').value = ''; renderAccountState(); closeAuthDialog(); showToast(`登录成功 · ${verification.user.username}`);
+    if (draftMode) { setDraftRoomMode(true); void syncRoomHistory(); }
+    else { try { await loadRoom(); connectEvents(); } catch { showToast('登录成功，但房间连接仍在恢复'); } }
+  } catch (error) {
+    if (loginRequestId === authSessionRequestId) {
+      authState = { ...authState, enabled: true, authenticated: false, user: null, loading: false };
+      renderAccountState();
+    }
+    authDialog.hidden = false; accountButton.setAttribute('aria-expanded', 'true');
+    authError.textContent = error.message === 'captcha_required' ? '请完成验证码后再试' : error.message === 'too_many_attempts' ? '尝试次数过多，请稍后再试' : error.message === 'setup_required' ? '管理员账户尚未初始化' : error.message === 'session_not_persisted' ? '账号验证通过，但浏览器没有保存登录状态，请重试' : '账户名或密码不正确';
+    authError.hidden = false;
+    if (error.message === 'captcha_required') await ensureCaptcha();
+    $('authPassword').focus(); $('authPassword').select();
+  } finally {
+    submitButton.disabled = false; submitButton.innerHTML = previousButtonText;
+  }
 });
+$('refreshCaptcha').onclick = () => loadBuiltInCaptcha();
 $('logoutButton').onclick = async () => { try { await authRequest('/api/auth/logout', { method: 'POST', body: '{}' }); } catch {} location.reload(); };
 $('adminToggle').onclick = () => { const panel = $('adminPanel'); panel.hidden = !panel.hidden; if (!panel.hidden) loadAdminUsers(); };
 $('addUserForm').addEventListener('submit', async (event) => { event.preventDefault(); try { await authRequest('/api/auth/users', { method: 'POST', body: JSON.stringify({ username: $('newUsername').value.trim(), password: $('newPassword').value }) }); $('newUsername').value = ''; $('newPassword').value = ''; showToast('账户已添加'); loadAdminUsers(); } catch (error) { showToast(error.message === 'username_exists' ? '账户名已存在' : '添加账户失败'); } });
@@ -1055,8 +1181,7 @@ window.addEventListener('online', () => { connectionRetryDelay = 1000; scheduleC
 window.addEventListener('offline', () => setConnectionState('offline', itemStore.size > 0));
 document.addEventListener('visibilitychange', () => { if (!document.hidden && authState.authenticated) void syncRoomHistory(); });
 loadFavorites().catch(() => {}).then(loadAuthSession).then(() => {
-  if (maintenanceMode) { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = '本地调试中 · 静默模式'; setStaticMode(true); accountLabel.textContent = '调试中'; accountButton.disabled = true; $('sidebarModeLabel').textContent = '公网前端暂时只读'; renderAll(); return; }
-  if (draftMode) { roomMeta = { name: '待创建房间', canManage: false }; renderRoomControls(); setDraftRoomMode(true); void syncRoomHistory(); return; }
-  if (authState.enabled && !authState.authenticated) { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = '未登录 · 静态模式'; renderAll(); return; }
+  if (draftMode) { roomMeta = { name: '待创建房间', canManage: false }; renderRoomControls(); setDraftRoomMode(true); if (sidebarRequested) toggleSidebar(true); void syncRoomHistory(); return; }
+  if (authState.enabled && !authState.authenticated) { $('statusDot').className = 'status-dot connecting'; $('connectionText').textContent = '访客连接中 · 消息保存 12 小时'; return loadRoom().then(() => { if (sidebarRequested) toggleSidebar(true); connectEvents(); }); }
   return loadRoom().then(() => { if (sidebarRequested) toggleSidebar(true); connectEvents(); });
 }).catch(async () => { const fromCache = await restoreRoomCache(); setConnectionState('offline', fromCache); scheduleConnectionRetry(); });
