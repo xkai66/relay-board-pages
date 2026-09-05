@@ -974,6 +974,40 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 :root[data-theme="ivory"] .message-rail-node i { background: rgba(48,65,74,.42); }
 :root[data-theme="ivory"] .message-rail-node:hover i, :root[data-theme="ivory"] .message-rail-node.active i { background: linear-gradient(90deg, var(--cyan), var(--magenta)); }
 :root[data-theme="ivory"] .auth-panel, :root[data-theme="ivory"] .room-sidebar { background: linear-gradient(145deg, rgba(255,252,244,.44), transparent 48%), rgba(239,235,226,.9); box-shadow: 0 28px 80px rgba(83,78,67,.2), inset 0 1px rgba(255,252,244,.76); }
+
+/* Final light lock: keep the bright mode mist-white and cool, even when an older cached rule is present. */
+:root[data-theme="light"] {
+  --bg: #e9eff2 !important;
+  --surface: #f6f8f9 !important;
+  --panel: rgba(245, 249, 250, .86) !important;
+  --panel-deep: #dfe9ee !important;
+  --ink: #254457 !important;
+  --ink-soft: #6b8797 !important;
+  --ink-faint: #8ca3af !important;
+  --line: rgba(77, 124, 146, .22) !important;
+  --line-strong: rgba(44, 149, 180, .5) !important;
+  --cyan: #2b9dbb !important;
+  --blue: #4379d0 !important;
+  --magenta: #b455a6 !important;
+  --violet: #6c50bf !important;
+  --green: #299fb8 !important;
+  --amber: #2b9dbb !important;
+  --glass: rgba(246, 249, 250, .72) !important;
+  --glass-soft: rgba(239, 245, 247, .62) !important;
+  --glass-edge: rgba(255, 255, 255, .86) !important;
+  --shadow: 0 24px 64px rgba(71, 105, 119, .16) !important;
+}
+:root[data-theme="light"] body { background: #e9eff2 !important; background-image: radial-gradient(circle at 13% 19%, rgba(255,255,255,.3) 0 1px, transparent 1.5px), radial-gradient(circle at 78% 74%, rgba(83,111,128,.035) 0 1px, transparent 1.4px), repeating-linear-gradient(118deg, rgba(83,111,128,.014) 0 1px, transparent 1px 7px), linear-gradient(140deg, #eef3f5, #e3ebef 56%, #eaf0f2) !important; }
+:root[data-theme="light"] .board-heading-hero { background: linear-gradient(135deg, rgba(255,255,255,.66), transparent 56%), linear-gradient(155deg, #edf3f4, #f3f6f7 64%, #e8eef0) !important; }
+:root[data-theme="light"] .hero-visual { background: transparent !important; }
+:root[data-theme="light"] .relay-loader { background: radial-gradient(circle at 76% 45%, rgba(53,170,195,.1), transparent 30%), linear-gradient(135deg, #f0f5f6, #e4edf1 56%, #f0e9f1) !important; }
+:root[data-theme="light"] .card, :root[data-theme="light"] .board-feed { background: linear-gradient(145deg, rgba(255,255,255,.48), transparent 46%), rgba(241,246,247,.8) !important; }
+:root[data-theme="light"] .chat-history { background: linear-gradient(180deg, rgba(255,255,255,.3), transparent 22%), transparent !important; }
+:root[data-theme="light"] .composer:not(.is-expanded), :root[data-theme="light"] .composer.is-expanded { background: linear-gradient(135deg, rgba(255,255,255,.52), transparent 58%), rgba(241,246,247,.78) !important; }
+:root[data-theme="light"] .editor, :root[data-theme="light"] .analysis-card textarea { background: rgba(250,252,252,.76) !important; }
+:root[data-theme="light"] .room-sidebar, :root[data-theme="light"] .auth-panel { background: rgba(244,248,249,.95) !important; }
+:root[data-theme="light"] .item { background: rgba(245,249,250,.9) !important; }
+:root[data-theme="light"] .item.mine { background: linear-gradient(145deg, #edf2f3, rgba(180,84,163,.1)) !important; }
 .room-sidebar { position: fixed; z-index: 30; top: 16px; bottom: 16px; left: max(16px, calc((100vw - 1340px) / 2)); display: flex; flex-direction: column; width: min(286px, calc(100vw - 32px)); padding: 20px 14px 14px; border: 1px solid var(--glass-edge); border-radius: 24px; color: var(--ink); background: linear-gradient(145deg, rgba(255,255,255,.1), transparent 42%), var(--glass); box-shadow: 0 24px 70px rgba(0,2,12,.32), inset 0 1px rgba(255,255,255,.72); backdrop-filter: blur(24px) saturate(135%); -webkit-backdrop-filter: blur(24px) saturate(135%); transform: translateX(calc(-100% - 24px)); opacity: 0; pointer-events: none; transition: transform .24s ease, opacity .24s ease; }
 .room-sidebar.is-open { transform: translateX(0); opacity: 1; pointer-events: auto; }
 .sidebar-backdrop { position: fixed; z-index: 29; inset: 0; background: rgba(2,6,21,.24); backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }

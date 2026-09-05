@@ -1,7 +1,8 @@
 const params = new URLSearchParams(location.search);
 const makeRoom = () => crypto.randomUUID().replaceAll('-', '').slice(0, 12);
+const draftMode = params.get('new') === '1';
 const room = /^[a-zA-Z0-9_-]{8,64}$/.test(params.get('room') || '') ? params.get('room') : makeRoom();
-if (!params.get('room')) history.replaceState(null, '', `?room=${room}`);
+if (!params.get('room') && !draftMode) history.replaceState(null, '', `?room=${room}`);
 let clientId = '';
 try { clientId = localStorage.getItem('relay-board-client-id') || ''; } catch {}
 if (!clientId) {
@@ -200,16 +201,22 @@ function rememberRoom(name = roomMeta.name || '') {
   records.unshift({ room, name: String(name || '').slice(0, 80), seenAt: Date.now() });
   try { localStorage.setItem(roomHistoryKey, JSON.stringify(records.slice(0, 20))); } catch {}
 }
+function forgetLocalRoom(roomId) {
+  const records = readRoomHistory().filter((entry) => entry.room !== roomId);
+  try { localStorage.setItem(roomHistoryKey, JSON.stringify(records)); } catch {}
+  renderRoomList();
+}
+async function navigateAfterRoomDeletion(deletedRoomId) {
+  forgetLocalRoom(deletedRoomId);
+  if (authState.authenticated) await syncRoomHistory();
+  const fallback = readRoomHistory().find((entry) => entry.room !== deletedRoomId)?.room;
+  location.href = fallback ? `?room=${encodeURIComponent(fallback)}` : '?new=1';
+}
 async function syncRoomHistory() {
   if (!authState.authenticated) return;
   try {
-    const data = await authRequest('/api/auth/rooms'); const merged = new Map();
-    [...(data.rooms || []), ...readRoomHistory()].forEach((entry) => {
-      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(String(entry.room || ''))) return;
-      const current = merged.get(entry.room); const candidate = { room: entry.room, name: String(entry.name || '').slice(0, 80), seenAt: Number(entry.seenAt || 0) };
-      if (!current || candidate.seenAt >= current.seenAt) merged.set(entry.room, candidate);
-    });
-    const records = [...merged.values()].sort((a, b) => b.seenAt - a.seenAt).slice(0, 20);
+    const data = await authRequest('/api/auth/rooms');
+    const records = (data.rooms || []).filter((entry) => /^[a-zA-Z0-9_-]{8,64}$/.test(String(entry.room || ''))).map((entry) => ({ room: entry.room, name: String(entry.name || '').slice(0, 80), seenAt: Number(entry.seenAt || 0) })).sort((a, b) => b.seenAt - a.seenAt).slice(0, 20);
     try { localStorage.setItem(roomHistoryKey, JSON.stringify(records)); } catch {}
     renderRoomList();
   } catch { /* local history remains available while the backend is offline */ }
@@ -229,6 +236,13 @@ function renderRoomList() {
   });
 }
 function renderRoomControls() { const visible = Boolean(roomMeta.canManage && authState.authenticated); renameRoomButton.hidden = !visible; deleteRoomButton.hidden = !visible; }
+function setDraftRoomMode(enabled) {
+  if (!enabled) return;
+  $('roomCode').textContent = 'NEW ROOM'; $('roomKey').textContent = '—';
+  ['addContentButton', 'shareButton', 'copyKey', 'sendButton', 'pasteSendButton', 'analyzeButton'].forEach((id) => { const element = $(id); if (element) element.disabled = true; });
+  $('fileInput').disabled = true; $('fileInput').dataset.requiresAuth = 'true'; document.querySelector('label[for="fileInput"]')?.classList.add('is-auth-disabled');
+  $('connectionText').textContent = '等待创建房间'; $('statusDot').className = 'status-dot offline';
+}
 function toggleSidebar(open) {
   const next = open ?? !roomSidebar.classList.contains('is-open');
   roomSidebar.classList.toggle('is-open', next); roomSidebar.setAttribute('aria-hidden', String(!next)); sidebarToggle.setAttribute('aria-expanded', String(next)); sidebarBackdrop.hidden = !next;
@@ -697,7 +711,7 @@ function connectEvents() {
     itemStore.set(item.id, item); renderAll(); saveRoomCache();
   });
   eventSource.addEventListener('remove', (event) => { itemStore.delete(JSON.parse(event.data).id); renderAll(); saveRoomCache(); });
-  eventSource.addEventListener('room_deleted', () => { if (location.search.includes(room)) location.href = `?room=${makeRoom()}`; });
+  eventSource.addEventListener('room_deleted', () => { if (location.search.includes(room)) void navigateAfterRoomDeletion(room); });
   eventSource.onerror = () => { setConnectionState('offline', itemStore.size > 0); scheduleConnectionRetry(); };
 }
 
@@ -768,6 +782,7 @@ async function queueImage(file) {
 }
 
 async function submitComposer() {
+  if (draftMode) return showToast('请先开启新房间');
   if (authState.enabled && !authState.authenticated) return showToast('登录后才能发送内容');
   const rich = $('preserveFormat').checked;
   const text = editor.innerText.trim();
@@ -782,6 +797,7 @@ async function submitComposer() {
 
 async function submitFile(file) {
   if (!file) return;
+  if (draftMode) return showToast('请先开启新房间');
   if (authState.enabled && !authState.authenticated) return showToast('登录后才能上传内容');
   if (file.size > 200 * 1024 * 1024) return showToast('文件超过 200MB 限制');
   const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file';
@@ -959,7 +975,7 @@ async function renameCurrentRoom() {
 }
 async function deleteCurrentRoom() {
   if (!roomMeta.canManage || !window.confirm(`确定删除房间“${roomMeta.name || room.slice(0, 8).toUpperCase()}”吗？`)) return;
-  try { await authRequest(`/api/room/${room}`, { method: 'DELETE' }); location.href = `?room=${makeRoom()}`; }
+  try { await authRequest(`/api/room/${room}`, { method: 'DELETE' }); await navigateAfterRoomDeletion(room); }
   catch (error) { showToast(error.message === 'room_owner_required' ? '只有创房人可以删除房间' : '房间删除失败'); }
 }
 $('newRoom').onclick = createRoomAndNavigate;
@@ -1022,11 +1038,12 @@ itemsEl.addEventListener('scroll', () => { updateMessageRail(); revealMessageRai
 editor.addEventListener('dragover', (event) => event.preventDefault());
 editor.addEventListener('drop', (event) => { event.preventDefault(); const file = [...event.dataTransfer.files][0]; if (!file) return; const task = file.type.startsWith('image/') ? queueImage(file) : submitFile(file); task.catch(() => showToast('上传失败')); });
 
-rememberRoom(); renderAccountState();
+if (!draftMode) rememberRoom(); renderAccountState();
 window.addEventListener('online', () => { connectionRetryDelay = 1000; scheduleConnectionRetry(); });
 window.addEventListener('offline', () => setConnectionState('offline', itemStore.size > 0));
 document.addEventListener('visibilitychange', () => { if (!document.hidden && authState.authenticated) void syncRoomHistory(); });
 loadFavorites().catch(() => {}).then(loadAuthSession).then(() => {
+  if (draftMode) { roomMeta = { name: '待创建房间', canManage: false }; renderRoomControls(); setDraftRoomMode(true); void syncRoomHistory(); return; }
   if (authState.enabled && !authState.authenticated) { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = '未登录 · 静态模式'; renderAll(); return; }
   return loadRoom().then(connectEvents);
 }).catch(async () => { const fromCache = await restoreRoomCache(); setConnectionState('offline', fromCache); scheduleConnectionRetry(); });
