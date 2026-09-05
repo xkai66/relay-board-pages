@@ -167,9 +167,15 @@ function applyTheme(theme) {
   themeToggle.setAttribute('aria-label', `切换到${themeNames[nextTheme]}风格`);
   themeLabel.textContent = themeNames[activeTheme];
 }
-const themeStorageKey = 'relay-board-theme-v5';
+const themeStorageKey = 'relay-board-theme-v6';
 let savedTheme = 'light';
-try { savedTheme = localStorage.getItem(themeStorageKey) || 'light'; } catch {}
+try {
+  const legacyTheme = localStorage.getItem('relay-board-theme-v5');
+  const storedTheme = localStorage.getItem(themeStorageKey) || legacyTheme;
+  savedTheme = storedTheme === 'dark' ? 'dark' : 'light';
+  localStorage.setItem(themeStorageKey, savedTheme);
+  ['relay-board-theme-v5', 'relay-board-theme-v4', 'relay-board-theme'].forEach((key) => localStorage.removeItem(key));
+} catch {}
 applyTheme(savedTheme);
 themeToggle.onclick = () => {
   const themeOrder = ['dark', 'light'];
