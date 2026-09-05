@@ -1,6 +1,7 @@
 const params = new URLSearchParams(location.search);
 const makeRoom = () => crypto.randomUUID().replaceAll('-', '').slice(0, 12);
 const draftMode = params.get('new') === '1';
+const sidebarRequested = params.get('sidebar') === '1';
 const room = /^[a-zA-Z0-9_-]{8,64}$/.test(params.get('room') || '') ? params.get('room') : makeRoom();
 if (!params.get('room') && !draftMode) history.replaceState(null, '', `?room=${room}`);
 let clientId = '';
@@ -210,7 +211,7 @@ async function navigateAfterRoomDeletion(deletedRoomId) {
   forgetLocalRoom(deletedRoomId);
   if (authState.authenticated) await syncRoomHistory();
   const fallback = readRoomHistory().find((entry) => entry.room !== deletedRoomId)?.room;
-  location.href = fallback ? `?room=${encodeURIComponent(fallback)}` : '?new=1';
+  location.href = fallback ? `?room=${encodeURIComponent(fallback)}&sidebar=1` : '?new=1&sidebar=1';
 }
 async function syncRoomHistory() {
   if (!authState.authenticated) return;
@@ -1045,5 +1046,5 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && au
 loadFavorites().catch(() => {}).then(loadAuthSession).then(() => {
   if (draftMode) { roomMeta = { name: '待创建房间', canManage: false }; renderRoomControls(); setDraftRoomMode(true); void syncRoomHistory(); return; }
   if (authState.enabled && !authState.authenticated) { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = '未登录 · 静态模式'; renderAll(); return; }
-  return loadRoom().then(connectEvents);
+  return loadRoom().then(() => { if (sidebarRequested) toggleSidebar(true); connectEvents(); });
 }).catch(async () => { const fromCache = await restoreRoomCache(); setConnectionState('offline', fromCache); scheduleConnectionRetry(); });
