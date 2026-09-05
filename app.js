@@ -88,6 +88,8 @@ const fallbackFavoriteStore = new Map();
 let eventSource;
 let toastTimer;
 let pendingImage = null;
+const pendingUploads = new Map();
+const enteringItemIds = new Set();
 let searchQuery = '';
 let messageRailHideTimer;
 let pageProgressHideTimer;
@@ -178,7 +180,7 @@ function openRoomCacheDb() {
   return new Promise((resolve) => { const request = indexedDB.open(roomCacheDbName, 1); request.onupgradeneeded = () => request.result.createObjectStore('rooms', { keyPath: 'room' }); request.onsuccess = () => resolve(request.result); request.onerror = () => resolve(null); });
 }
 async function saveRoomCache() {
-  const record = { room, updatedAt: Date.now(), items: [...itemStore.values()].slice(-100) }; const db = await openRoomCacheDb();
+  const record = { room, updatedAt: Date.now(), items: [...itemStore.values()].filter((item) => !item.pending).slice(-100) }; const db = await openRoomCacheDb();
   if (!db) { try { localStorage.setItem(`relay-board-room-${room}`, JSON.stringify(record)); } catch {} return; }
   try { await new Promise((resolve, reject) => { const transaction = db.transaction('rooms', 'readwrite'); transaction.objectStore('rooms').put(record); transaction.oncomplete = resolve; transaction.onerror = () => reject(transaction.error); }); } catch {}
   db.close();
@@ -498,6 +500,8 @@ function appendItemImage(content, item) {
 function renderItem(item) {
   const mine = item.clientId && item.clientId === clientId;
   const node = document.createElement('article'); node.className = `item ${mine ? 'mine' : 'remote'}`; node.dataset.id = item.id; node.id = `item-${item.id}`; node.title = '双击复制内容';
+  if (item.pending) { node.classList.add('pending-upload'); node.setAttribute('aria-busy', 'true'); }
+  if (enteringItemIds.has(item.id)) node.classList.add('is-entering');
   const kind = itemKindLabel(item);
   const content = document.createElement('div'); content.className = 'item-content';
   if (item.kind === 'text') appendItemText(content, item);
@@ -506,24 +510,32 @@ function renderItem(item) {
   else if (item.kind === 'video') { const video = document.createElement('video'); video.className = 'item-media'; video.controls = true; video.preload = 'metadata'; video.src = item.data; content.append(video); }
   else content.innerHTML = `<p>📎 ${escapeHtml(item.name || '文件')}</p>`;
   const actions = document.createElement('div'); actions.className = 'item-actions';
-  if (item.kind === 'bundle') {
-    const copyText = document.createElement('button'); copyText.className = 'mini-button'; copyText.textContent = '仅复制文字'; copyText.onclick = () => copyTextOnly(item);
-    const download = document.createElement('a'); download.className = 'mini-button'; download.textContent = '下载'; download.download = item.name || `image-${item.id}`; download.href = item.data; download.style.textDecoration = 'none';
-    const copy = document.createElement('button'); copy.className = 'mini-button'; copy.textContent = '复制'; copy.onclick = () => copyAll(item);
-    actions.append(copyText, download, copy);
+  if (item.pending) {
+    if (item.uploadState === 'failed') {
+      const retry = document.createElement('button'); retry.className = 'mini-button upload-retry'; retry.textContent = '重试上传'; retry.onclick = () => retryPendingUpload(item.id); actions.append(retry);
+    }
+    const cancel = document.createElement('button'); cancel.className = 'mini-button'; cancel.textContent = item.uploadState === 'failed' ? '移除' : '取消'; cancel.onclick = () => removeItem(item.id); actions.append(cancel);
   } else {
-    const download = document.createElement('a'); download.className = 'mini-button'; download.textContent = '下载'; download.download = item.name || `${item.kind}-${item.id}`; download.href = item.kind === 'text' ? URL.createObjectURL(new Blob([item.text], { type: 'text/plain;charset=utf-8' })) : item.data; download.style.textDecoration = 'none';
-    const urlMenu = createUrlMenu(item);
-    if (urlMenu) actions.append(urlMenu);
-    actions.append(download);
+    if (item.kind === 'bundle') {
+      const copyText = document.createElement('button'); copyText.className = 'mini-button'; copyText.textContent = '仅复制文字'; copyText.onclick = () => copyTextOnly(item);
+      const download = document.createElement('a'); download.className = 'mini-button'; download.textContent = '下载'; download.download = item.name || `image-${item.id}`; download.href = item.data; download.style.textDecoration = 'none';
+      const copy = document.createElement('button'); copy.className = 'mini-button'; copy.textContent = '复制'; copy.onclick = () => copyAll(item);
+      actions.append(copyText, download, copy);
+    } else {
+      const download = document.createElement('a'); download.className = 'mini-button'; download.textContent = '下载'; download.download = item.name || `${item.kind}-${item.id}`; download.href = item.kind === 'text' ? URL.createObjectURL(new Blob([item.text], { type: 'text/plain;charset=utf-8' })) : item.data; download.style.textDecoration = 'none';
+      const urlMenu = createUrlMenu(item);
+      if (urlMenu) actions.append(urlMenu);
+      actions.append(download);
+    }
+    const analysisLink = document.createElement('button'); analysisLink.className = 'mini-button analysis-link-action'; analysisLink.textContent = '分享链接'; analysisLink.title = '分享只包含这条消息的分析卡片'; analysisLink.onclick = (event) => { event.stopPropagation(); copyAnalysisLink(item); };
+    actions.append(analysisLink);
+    const favorite = document.createElement('button'); favorite.className = 'mini-button favorite-action'; favorite.textContent = favoriteStore.has(item.id) ? '★ 已收藏' : '☆ 收藏'; favorite.onclick = () => toggleFavorite(item);
+    const remove = document.createElement('button'); remove.className = 'mini-button'; remove.textContent = '移除'; remove.onclick = () => removeItem(item.id);
+    actions.append(favorite, remove);
   }
-  const analysisLink = document.createElement('button'); analysisLink.className = 'mini-button analysis-link-action'; analysisLink.textContent = '分享链接'; analysisLink.title = '分享只包含这条消息的分析卡片'; analysisLink.onclick = (event) => { event.stopPropagation(); copyAnalysisLink(item); };
-  actions.append(analysisLink);
-  const favorite = document.createElement('button'); favorite.className = 'mini-button favorite-action'; favorite.textContent = favoriteStore.has(item.id) ? '★ 已收藏' : '☆ 收藏'; favorite.onclick = () => toggleFavorite(item);
-  const remove = document.createElement('button'); remove.className = 'mini-button'; remove.textContent = '移除'; remove.onclick = () => removeItem(item.id);
-  actions.append(favorite, remove);
   const device = `${itemDeviceLabel(item)}${item.deviceName ? ` · ${escapeHtml(item.deviceName)}` : ''}`;
   node.innerHTML = `<div class="item-meta"><span class="item-sender">${mine ? '我' : '其他设备'}</span><span class="item-device">${device}</span><span class="item-kind">${kind}</span><time>${relativeTime(item.createdAt)}</time></div>`;
+  if (item.pending) { const status = document.createElement('span'); status.className = `item-upload-state ${item.uploadState === 'failed' ? 'failed' : ''}`; status.textContent = item.uploadState === 'failed' ? '上传失败' : '上传中'; node.querySelector('.item-meta').append(status); }
   node.addEventListener('dblclick', (event) => { if (!event.target.closest('button, a, .url-menu')) copyItem(item).catch(() => showToast('复制失败')); });
   node.append(content, actions); return node;
 }
@@ -580,14 +592,73 @@ function renderAll() {
   const nearBottom = itemsEl.scrollHeight - itemsEl.scrollTop - itemsEl.clientHeight < 80;
   const records = visibleItems();
   itemsEl.replaceChildren(...records.map(renderItem));
+  const enteringNow = [...enteringItemIds];
+  if (enteringNow.length) window.setTimeout(() => enteringNow.forEach((id) => enteringItemIds.delete(id)), 720);
   renderMessageRail();
   $('itemCount').textContent = searchQuery.trim() ? `${records.length}/${itemStore.size}` : itemStore.size; $('emptyState').hidden = records.length > 0;
   if (nearBottom || itemStore.size <= 1) requestAnimationFrame(() => { itemsEl.scrollTop = itemsEl.scrollHeight; });
 }
 
+function pendingPreviewUrl(item, entry) {
+  return entry?.previewUrl || (typeof item.data === 'string' && item.data.startsWith('blob:') ? item.data : '');
+}
+
+function releasePendingPreview(item, entry) {
+  const previewUrl = pendingPreviewUrl(item, entry);
+  if (previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
+}
+
+function makePendingItem(payload, previewData = payload.data || '') {
+  const id = `local-${crypto.randomUUID()}`;
+  return { ...payload, id, data: previewData, originalData: '', createdAt: Date.now(), pending: true, uploadState: 'uploading' };
+}
+
+function markPendingFailed(localId, error) {
+  const item = itemStore.get(localId);
+  if (!item) return;
+  item.uploadState = 'failed'; item.uploadError = error?.message || 'upload_failed';
+  itemStore.set(localId, item); renderAll(); saveRoomCache(); showToast('消息已显示，但上传失败，可点击重试');
+}
+
+function replacePendingItem(localId, uploadedItem) {
+  const pending = itemStore.get(localId); const entry = pendingUploads.get(localId);
+  if (pending) releasePendingPreview(pending, entry);
+  pendingUploads.delete(localId); itemStore.delete(localId); enteringItemIds.add(uploadedItem.id); itemStore.set(uploadedItem.id, uploadedItem); renderAll(); saveRoomCache();
+}
+
+async function uploadPendingItem(localId) {
+  const entry = pendingUploads.get(localId); const item = itemStore.get(localId);
+  if (!entry || !item) return;
+  item.uploadState = 'uploading'; itemStore.set(localId, item); renderAll();
+  const controller = new AbortController(); entry.controller = controller;
+  try {
+    const response = await fetch(apiUrl(`/api/room/${room}/items`), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(entry.payload), signal: controller.signal });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || !data.item) throw new Error(data.error || 'upload_failed');
+    replacePendingItem(localId, data.item);
+    showToast('上传完成');
+  } catch (error) {
+    if (!itemStore.has(localId)) return;
+    markPendingFailed(localId, error);
+  }
+}
+
+function stagePendingUpload(payload, { previewData = payload.data || '', previewUrl = '', start = true } = {}) {
+  const item = makePendingItem(payload, previewData); itemStore.set(item.id, item);
+  pendingUploads.set(item.id, { payload, previewUrl }); renderAll(); saveRoomCache();
+  if (start) void uploadPendingItem(item.id);
+  return item;
+}
+
+function retryPendingUpload(localId) {
+  const entry = pendingUploads.get(localId); const item = itemStore.get(localId);
+  if (!entry || !item || item.uploadState === 'uploading') return;
+  void uploadPendingItem(localId);
+}
+
 async function loadRoom() {
   const response = await fetch(apiUrl(`/api/room/${room}`), { cache: 'no-store', credentials: 'include' }); if (!response.ok) throw new Error('room_load_failed');
-  const data = await response.json(); roomMeta = { name: data.name || `房间 ${room.slice(0, 6).toUpperCase()}`, canManage: Boolean(data.canManage) }; rememberRoom(roomMeta.name); renderRoomList(); renderRoomControls(); itemStore.clear(); data.items.forEach((item) => itemStore.set(item.id, item)); renderAll(); requestAnimationFrame(scrollToHash); saveRoomCache();
+  const data = await response.json(); const pendingItems = [...itemStore.values()].filter((item) => item.pending); roomMeta = { name: data.name || `房间 ${room.slice(0, 6).toUpperCase()}`, canManage: Boolean(data.canManage) }; rememberRoom(roomMeta.name); renderRoomList(); renderRoomControls(); itemStore.clear(); data.items.forEach((item) => itemStore.set(item.id, item)); pendingItems.forEach((item) => { if (!itemStore.has(item.id)) itemStore.set(item.id, item); }); renderAll(); requestAnimationFrame(scrollToHash); saveRoomCache();
 }
 
 function scrollToHash() {
@@ -598,7 +669,13 @@ function scrollToHash() {
 function connectEvents() {
   eventSource?.close(); eventSource = new EventSource(apiUrl(`/api/room/${room}/events`), { withCredentials: true });
   eventSource.addEventListener('ready', () => { clearTimeout(connectionRetryTimer); connectionRetryDelay = 1500; setConnectionState('live'); loadRoom().catch(() => {}); });
-  eventSource.addEventListener('item', (event) => { const item = JSON.parse(event.data); itemStore.set(item.id, item); renderAll(); saveRoomCache(); });
+  eventSource.addEventListener('item', (event) => {
+    const item = JSON.parse(event.data);
+    const pendingEntry = [...itemStore.entries()].find(([, value]) => value.pending && value.clientMessageId === item.clientMessageId);
+    if (pendingEntry) { releasePendingPreview(pendingEntry[1], pendingUploads.get(pendingEntry[0])); pendingUploads.delete(pendingEntry[0]); itemStore.delete(pendingEntry[0]); }
+    if (!itemStore.has(item.id)) enteringItemIds.add(item.id);
+    itemStore.set(item.id, item); renderAll(); saveRoomCache();
+  });
   eventSource.addEventListener('remove', (event) => { itemStore.delete(JSON.parse(event.data).id); renderAll(); saveRoomCache(); });
   eventSource.addEventListener('room_deleted', () => { if (location.search.includes(room)) location.href = `?room=${makeRoom()}`; });
   eventSource.onerror = () => { setConnectionState('offline', itemStore.size > 0); scheduleConnectionRetry(); };
@@ -671,25 +748,31 @@ async function queueImage(file) {
 }
 
 async function submitComposer() {
+  if (authState.enabled && !authState.authenticated) return showToast('登录后才能发送内容');
   const rich = $('preserveFormat').checked;
   const text = editor.innerText.trim();
   if (!text && !pendingImage) return showToast('先输入文字或加入一张图片');
   const payload = pendingImage
     ? { kind: 'bundle', text, html: rich ? editor.innerHTML : '', format: rich ? 'rich' : 'plain', data: pendingImage.data, originalData: pendingImage.originalData || undefined, mime: pendingImage.mime, name: pendingImage.name, clientId, deviceType, deviceName }
     : { kind: 'text', text, html: rich ? editor.innerHTML : '', format: rich ? 'rich' : 'plain', clientId, deviceType, deviceName };
-  const response = await fetch(apiUrl(`/api/room/${room}/items`), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-  if (!response.ok) return showToast('内容没有放入房间');
-  editor.innerHTML = ''; clearImageDraft(); composer?.classList.remove('is-expanded'); resizeComposerEditor(); showToast('已放入房间');
+  const localItem = stagePendingUpload({ ...payload, clientMessageId: `msg-${crypto.randomUUID()}` }, { previewData: payload.data || '' });
+  editor.innerHTML = ''; clearImageDraft(); composer?.classList.remove('is-expanded'); resizeComposerEditor(); showToast('已发送，正在上传…');
+  return localItem;
 }
 
 async function submitFile(file) {
   if (!file) return;
+  if (authState.enabled && !authState.authenticated) return showToast('登录后才能上传内容');
   if (file.size > 200 * 1024 * 1024) return showToast('文件超过 200MB 限制');
-  const data = await readFileData(file);
   const kind = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : 'file';
-  const response = await fetch(apiUrl(`/api/room/${room}/items`), { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ kind, data, mime: file.type, name: file.name, clientId, deviceType, deviceName }) });
-  if (!response.ok) return showToast('文件上传失败');
-  showToast('媒体已放入房间');
+  const clientMessageId = `msg-${crypto.randomUUID()}`; const previewUrl = URL.createObjectURL(file);
+  const localItem = stagePendingUpload({ kind, data: '', mime: file.type, name: file.name, clientId, deviceType, deviceName, clientMessageId }, { previewData: file.type.startsWith('image/') || file.type.startsWith('video/') ? previewUrl : '', previewUrl, start: false });
+  showToast('已发送，正在上传…');
+  try {
+    const data = await readFileData(file); const entry = pendingUploads.get(localItem.id);
+    if (!entry || !itemStore.has(localItem.id)) return;
+    entry.payload = { ...entry.payload, data }; await uploadPendingItem(localItem.id);
+  } catch (error) { markPendingFailed(localItem.id, error); }
 }
 
 async function copyTextOnly(item) {
@@ -773,10 +856,10 @@ async function pasteClipboardAndSend() {
   if (imageBlob) await queueImage(new File([imageBlob], `clipboard-image.${imageBlob.type.split('/')[1] || 'png'}`, { type: imageBlob.type }));
   updateComposerState(); resizeComposerEditor();
   await submitComposer();
-  showToast('剪贴板内容已粘贴并发送');
 }
 
 async function removeItem(id) {
+  if (pendingUploads.has(id)) { const entry = pendingUploads.get(id); entry.controller?.abort(); releasePendingPreview(itemStore.get(id), entry); pendingUploads.delete(id); itemStore.delete(id); renderAll(); saveRoomCache(); showToast('已取消上传'); return; }
   const response = await fetch(apiUrl(`/api/room/${room}/items/${id}`), { method: 'DELETE', credentials: 'include' });
   if (response.ok) { itemStore.delete(id); renderAll(); showToast('已移除'); }
 }
