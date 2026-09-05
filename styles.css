@@ -1063,3 +1063,6 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 .checkbox-label input { width: 16px !important; min-height: 16px !important; }
 @media (max-width: 720px) { .topbar-right { gap: 9px; }.topbar-note, .account-button #accountLabel { display: none; }.account-button { width: 34px; justify-content: center; padding: 6px; }.connection { gap: 3px; }.device-name-button { max-width: 74px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
 @media (max-width: 520px) { .room-sidebar { top: 10px; bottom: 10px; left: 10px; width: min(292px, calc(100vw - 20px)); border-radius: 22px; }.auth-panel { padding: 25px 20px; border-radius: 22px; } }
+
+.maintenance-mode .account-button:disabled { opacity: .82; cursor: default; }
+.maintenance-mode [data-requires-auth="true"] { cursor: not-allowed; }

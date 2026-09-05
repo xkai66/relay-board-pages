@@ -59,6 +59,7 @@ const clearSearchButton = $('clearSearchButton');
 const itemsEl = $('items');
 const messageRail = $('messageRail');
 const apiBase = (document.querySelector('meta[name="relay-api-base"]')?.content || '').trim().replace(/\/$/, '');
+const maintenanceMode = document.querySelector('meta[name="relay-maintenance"]')?.content === '1';
 const apiUrl = (path) => `${apiBase}${path}`;
 const sidebarToggle = $('sidebarToggle');
 const sidebarClose = $('sidebarClose');
@@ -279,6 +280,16 @@ function ensureTurnstile() {
   else if (!document.querySelector('#turnstileScript')) { const script = document.createElement('script'); script.id = 'turnstileScript'; script.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'; script.async = true; script.defer = true; script.onload = render; document.head.append(script); }
 }
 async function loadAuthSession() {
+  if (maintenanceMode) {
+    document.body.classList.add('maintenance-mode');
+    authState = { enabled: true, authenticated: false, user: null, maintenance: true };
+    renderAccountState();
+    accountLabel.textContent = '调试中';
+    accountButton.disabled = true;
+    $('connectionText').textContent = '本地调试中 · 静默模式';
+    $('sidebarModeLabel').textContent = '公网前端暂时只读';
+    return;
+  }
   try {
     const response = await fetch(apiUrl('/api/auth/session'), { credentials: 'include', cache: 'no-store' });
     if (!response.ok) return;
@@ -1044,6 +1055,7 @@ window.addEventListener('online', () => { connectionRetryDelay = 1000; scheduleC
 window.addEventListener('offline', () => setConnectionState('offline', itemStore.size > 0));
 document.addEventListener('visibilitychange', () => { if (!document.hidden && authState.authenticated) void syncRoomHistory(); });
 loadFavorites().catch(() => {}).then(loadAuthSession).then(() => {
+  if (maintenanceMode) { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = '本地调试中 · 静默模式'; setStaticMode(true); accountLabel.textContent = '调试中'; accountButton.disabled = true; $('sidebarModeLabel').textContent = '公网前端暂时只读'; renderAll(); return; }
   if (draftMode) { roomMeta = { name: '待创建房间', canManage: false }; renderRoomControls(); setDraftRoomMode(true); void syncRoomHistory(); return; }
   if (authState.enabled && !authState.authenticated) { $('statusDot').className = 'status-dot offline'; $('connectionText').textContent = '未登录 · 静态模式'; renderAll(); return; }
   return loadRoom().then(() => { if (sidebarRequested) toggleSidebar(true); connectEvents(); });
