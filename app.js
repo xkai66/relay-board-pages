@@ -615,6 +615,7 @@ function appendItemImage(content, item) {
 function renderItem(item) {
   const mine = item.clientId && item.clientId === clientId;
   const node = document.createElement('article'); node.className = `item ${mine ? 'mine' : 'remote'}`; node.dataset.id = item.id; node.id = `item-${item.id}`; node.title = '双击复制内容';
+  if (item.data && String(item.mime || '').startsWith('image/')) node.classList.add('has-image-media');
   if (item.pending) { node.classList.add('pending-upload'); node.setAttribute('aria-busy', 'true'); }
   if (enteringItemIds.has(item.id)) node.classList.add('is-entering');
   const kind = itemKindLabel(item);
