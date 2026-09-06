@@ -1342,3 +1342,12 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
   :root[data-theme="light"] .items { padding-bottom: 150px; }
   .item.has-image-media .item-content { max-height: none !important; overflow: visible !important; }
 }
+
+/* Never crop a message bubble; the history list is the only scroll surface. */
+.item { height: auto !important; max-height: none !important; overflow: visible !important; }
+.item-content { max-height: none !important; overflow: visible !important; }
+.item-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; }
+@media (max-width: 720px) {
+  .board-feed .composer { position: relative; bottom: auto; }
+  :root[data-theme="light"] .items { padding-bottom: 240px; }
+}
