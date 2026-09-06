@@ -1351,3 +1351,9 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
   .board-feed .composer { position: relative; bottom: auto; }
   :root[data-theme="light"] .items { padding-bottom: 240px; }
 }
+
+/* Phones use the page scroll only; never crop the history list into a second viewport. */
+@media (max-width: 720px) {
+  .board-feed .chat-history { overflow: visible !important; }
+  .board-feed .items { max-height: none !important; overflow: visible !important; }
+}
