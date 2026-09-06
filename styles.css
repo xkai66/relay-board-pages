@@ -1352,8 +1352,14 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
   :root[data-theme="light"] .items { padding-bottom: 240px; }
 }
 
-/* Phones use the page scroll only; never crop the history list into a second viewport. */
+/* Phones keep a stable conversation frame; only the message list scrolls. */
 @media (max-width: 720px) {
-  .board-feed .chat-history { overflow: visible !important; }
-  .board-feed .items { max-height: none !important; overflow: visible !important; }
+  .board-feed { display: flex; flex-direction: column; height: min(82vh, 760px); max-height: calc(100vh - 28px); }
+  .board-feed .chat-history { display: flex; flex: 1 1 auto; flex-direction: column; min-height: 0; overflow: hidden !important; }
+  .board-feed .items { flex: 1 1 auto; min-height: 0; height: auto; max-height: none !important; overflow-y: auto !important; overflow-x: hidden !important; padding-bottom: 30px; }
+  .board-feed .empty { flex: 1 1 auto; min-height: 0; }
+  .board-feed .composer { flex: 0 0 auto; }
+}
+@supports (height: 100dvh) {
+  @media (max-width: 720px) { .board-feed { height: min(82dvh, 760px); max-height: calc(100dvh - 28px); } }
 }
