@@ -1344,7 +1344,7 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 }
 
 /* Never crop a message bubble; the history list is the only scroll surface. */
-.item { height: auto !important; max-height: none !important; overflow: visible !important; }
+.item { height: auto !important; max-height: none !important; overflow: hidden !important; isolation: isolate; }
 .item-content { max-height: none !important; overflow: visible !important; }
 .item-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; }
 @media (max-width: 720px) {
@@ -1363,3 +1363,11 @@ h1 em { color: var(--cyan); font-style: normal; text-shadow: 0 0 18px rgba(31, 2
 @supports (height: 100dvh) {
   @media (max-width: 720px) { .board-feed { height: min(82dvh, 760px); max-height: calc(100dvh - 28px); } }
 }
+
+/* Room list actions: opening a room and pinning it are separate controls. */
+.room-list-open { display: flex; align-items: center; gap: 9px; flex: 1 1 auto; min-width: 0; min-height: 0; padding: 0; border: 0; color: inherit; background: transparent; text-align: left; }
+.room-list-open:hover { color: inherit; background: transparent; }
+.room-pin-button { display: inline-grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; min-height: 0; padding: 0; border: 1px solid transparent; border-radius: 9px; color: var(--ink-faint); background: transparent; font-size: 16px; line-height: 1; }
+.room-pin-button:hover, .room-pin-button.is-pinned { border-color: rgba(180,84,163,.28); color: var(--magenta); background: rgba(180,84,163,.08); }
+:root[data-theme="light"] .room-pin-button:hover, :root[data-theme="light"] .room-pin-button.is-pinned { border-color: rgba(180,84,163,.24); background: rgba(180,84,163,.07); }
+@media (max-width: 520px) { .room-list-open { gap: 7px; } .room-pin-button { width: 30px; height: 30px; } }
